@@ -7,6 +7,7 @@ repository = "https://github.com/RazrFalcon/memmap2-rs"
 documentation = "https://docs.rs/memmap2"
 description = "Cross-platform Rust API for memory-mapped file IO"
 keywords = ["mmap", "memory-map", "io", "file"]
+exclude = ["/ci/*", "/.appveyor.yml", "/.travis.yml"]
 
 [badges]
 travis-ci = { repository = "RazrFalcon/memmap2-rs" }
