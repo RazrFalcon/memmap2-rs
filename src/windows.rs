@@ -356,13 +356,13 @@ impl MmapInner {
     }
 
     #[inline]
-    pub fn ptr(&self) -> *const u8 {
-        self.ptr as *const u8
+    pub fn ptr<T>(&self) -> *const T {
+        self.ptr as *const T
     }
 
     #[inline]
-    pub fn mut_ptr(&mut self) -> *mut u8 {
-        self.ptr as *mut u8
+    pub fn mut_ptr<T>(&mut self) -> *mut T {
+        self.ptr as *mut T
     }
 
     #[inline]

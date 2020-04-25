@@ -15,6 +15,7 @@ use unix::MmapInner;
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::slice;
 use std::usize;
@@ -414,14 +415,19 @@ impl Deref for Mmap {
 
     #[inline]
     fn deref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.inner.ptr(), self.inner.len()) }
+        self.as_ref()
     }
 }
 
-impl AsRef<[u8]> for Mmap {
+impl<T> AsRef<[T]> for Mmap {
     #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.deref()
+    fn as_ref(&self) -> &[T] {
+        unsafe {
+            slice::from_raw_parts(
+                self.inner.ptr::<T>(),
+                self.inner.len() / mem::size_of::<T>()
+            )
+        }
     }
 }
 
@@ -643,28 +649,38 @@ impl Deref for MmapMut {
 
     #[inline]
     fn deref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.inner.ptr(), self.inner.len()) }
+        self.as_ref()
     }
 }
 
 impl DerefMut for MmapMut {
     #[inline]
     fn deref_mut(&mut self) -> &mut [u8] {
-        unsafe { slice::from_raw_parts_mut(self.inner.mut_ptr(), self.inner.len()) }
+        self.as_mut()
     }
 }
 
-impl AsRef<[u8]> for MmapMut {
+impl<T> AsRef<[T]> for MmapMut {
     #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.deref()
+    fn as_ref(&self) -> &[T] {
+        unsafe {
+            slice::from_raw_parts(
+                self.inner.ptr::<T>(),
+                self.inner.len() / mem::size_of::<T>()
+            )
+        }
     }
 }
 
-impl AsMut<[u8]> for MmapMut {
+impl<T> AsMut<[T]> for MmapMut {
     #[inline]
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.deref_mut()
+    fn as_mut(&mut self) -> &mut [T] {
+        unsafe {
+            slice::from_raw_parts_mut(
+                self.inner.mut_ptr::<T>(),
+                self.inner.len() / mem::size_of::<T>()
+            )
+        }
     }
 }
 
