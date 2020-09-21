@@ -243,6 +243,8 @@ impl MmapInner {
         handle: RawHandle,
         offset: u64,
         _populate: bool,
+        _locked: bool,
+        _private: bool,
     ) -> io::Result<MmapInner> {
         let write = protection_supported(handle, PAGE_READWRITE);
         let exec = protection_supported(handle, PAGE_EXECUTE_READ);
@@ -275,6 +277,8 @@ impl MmapInner {
         handle: RawHandle,
         offset: u64,
         _populate: bool,
+        _locked: bool,
+        _private: bool,
     ) -> io::Result<MmapInner> {
         let write = protection_supported(handle, PAGE_READWRITE);
         let mut access = FILE_MAP_READ | FILE_MAP_EXECUTE;
@@ -292,13 +296,8 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_mut(
-        len: usize,
-        handle: RawHandle,
-        offset: u64,
-        _populate: bool,
-    ) -> io::Result<MmapInner> {
-        let exec = protection_supported(handle, PAGE_EXECUTE_READ);
+    pub fn map_mut(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+        let exec = protection_supported(file.as_raw_handle(), PAGE_EXECUTE_READ);
         let mut access = FILE_MAP_READ | FILE_MAP_WRITE;
         let protection = if exec {
             access |= FILE_MAP_EXECUTE;
@@ -319,6 +318,7 @@ impl MmapInner {
         handle: RawHandle,
         offset: u64,
         _populate: bool,
+        _locked: bool,
     ) -> io::Result<MmapInner> {
         let exec = protection_supported(handle, PAGE_EXECUTE_READWRITE);
         let mut access = FILE_MAP_COPY;
@@ -341,6 +341,7 @@ impl MmapInner {
         handle: RawHandle,
         offset: u64,
         _populate: bool,
+        _locked: bool,
     ) -> io::Result<MmapInner> {
         let write = protection_supported(handle, PAGE_READWRITE);
         let exec = protection_supported(handle, PAGE_EXECUTE_READ);
@@ -359,7 +360,7 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_anon(len: usize, _stack: bool) -> io::Result<MmapInner> {
+    pub fn map_anon(len: usize, _stack: bool, _locked: bool) -> io::Result<MmapInner> {
         // Ensure a non-zero length for the underlying mapping
         let mapped_len = len.max(1);
         unsafe {

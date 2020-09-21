@@ -140,6 +140,8 @@ pub struct MmapOptions {
     len: Option<usize>,
     stack: bool,
     populate: bool,
+    locked: bool,
+    private: bool,
 }
 
 impl MmapOptions {
@@ -307,6 +309,63 @@ impl MmapOptions {
         self
     }
 
+    /// Configures the memory map to be locked.
+    ///
+    /// This option corresponds to the `MAP_LOCKED` flag on Linux, and has no effect on Windows and MacOS.
+    ///
+    /// Note this requires privileged access.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use memmap2::MmapOptions;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let file = File::open("LICENSE-MIT")?;
+    ///
+    /// let mmap = unsafe {
+    ///     MmapOptions::new().lock().map(&file)?
+    /// };
+    ///
+    /// assert_eq!(&b"Copyright"[..], &mmap[..9]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lock(&mut self) -> &mut Self {
+        self.locked = true;
+        self
+    }
+
+    /// Configures the memory map to be private.
+    ///
+    /// This option corresponds to the `MAP_PRIVATE` flag on Linux.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use memmap2::MmapOptions;
+    /// use std::fs::File;
+    /// use std::io::Write;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let file = File::open("LICENSE-MIT")?;
+    ///
+    /// let mut mmap = unsafe {
+    ///     MmapOptions::new().private().map_mut(&file)?
+    /// };
+    /// (&mut mmap[..]).write_all(b"aabb").unwrap();
+    /// mmap.flush()?;
+    ///
+    /// assert_eq!(&b"aabbright"[..], &mmap[..9]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn private(&mut self) -> &mut Self {
+        self.private = true;
+        self
+    }
+
     /// Creates a read-only memory map backed by a file.
     ///
     /// # Errors
@@ -338,8 +397,15 @@ impl MmapOptions {
     pub unsafe fn map<T: MmapAsRawDesc>(&self, file: T) -> Result<Mmap> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| Mmap { inner })
+        MmapInner::map(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+            self.private,
+        )
+        .map(|inner| Mmap { inner })
     }
 
     /// Creates a readable and executable memory map backed by a file.
@@ -351,8 +417,15 @@ impl MmapOptions {
     pub unsafe fn map_exec<T: MmapAsRawDesc>(&self, file: T) -> Result<Mmap> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map_exec(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| Mmap { inner })
+        MmapInner::map_exec(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+            self.private,
+        )
+        .map(|inner| Mmap { inner })
     }
 
     /// Creates a writeable memory map backed by a file.
@@ -391,8 +464,15 @@ impl MmapOptions {
     pub unsafe fn map_mut<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapMut> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map_mut(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapMut { inner })
+        MmapInner::map_mut(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+            self.private,
+        )
+        .map(|inner| MmapMut { inner })
     }
 
     /// Creates a copy-on-write memory map backed by a file.
@@ -422,8 +502,14 @@ impl MmapOptions {
     pub unsafe fn map_copy<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapMut> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map_copy(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapMut { inner })
+        MmapInner::map_copy(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+        )
+        .map(|inner| MmapMut { inner })
     }
 
     /// Creates a copy-on-write read-only memory map backed by a file.
@@ -457,8 +543,14 @@ impl MmapOptions {
     pub unsafe fn map_copy_read_only<T: MmapAsRawDesc>(&self, file: T) -> Result<Mmap> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map_copy_read_only(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| Mmap { inner })
+        MmapInner::map_copy_read_only(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+        )
+        .map(|inner| Mmap { inner })
     }
 
     /// Creates an anonymous memory map.
@@ -482,7 +574,7 @@ impl MmapOptions {
             ));
         }
 
-        MmapInner::map_anon(len, self.stack).map(|inner| MmapMut { inner })
+        MmapInner::map_anon(len, self.stack, self.locked).map(|inner| MmapMut { inner })
     }
 
     /// Creates a raw memory map.
@@ -494,8 +586,15 @@ impl MmapOptions {
     pub fn map_raw<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapRaw> {
         let desc = file.as_raw_desc();
 
-        MmapInner::map_mut(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapRaw { inner })
+        MmapInner::map_mut(
+            self.get_len(&file)?,
+            desc.0,
+            self.offset,
+            self.populate,
+            self.locked,
+            self.private,
+        )
+        .map(|inner| MmapRaw { inner })
     }
 }
 
@@ -628,6 +727,26 @@ impl Mmap {
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         self.inner.advise(advice)
+    }
+
+    /// Uses `mlock` to lock the whole memory map into RAM.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn mlock(&mut self) -> Result<()> {
+        self.inner.mlock()?;
+
+        Ok(())
+    }
+
+    /// Uses `munlock` to unlock the whole memory map.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn munlock(&mut self) -> Result<()> {
+        self.inner.munlock()?;
+
+        Ok(())
     }
 }
 
@@ -1005,6 +1124,26 @@ impl MmapMut {
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         self.inner.advise(advice)
+    }
+
+    /// Uses `mlock` to lock the whole memory map into RAM.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn mlock(&mut self) -> Result<()> {
+        self.inner.mlock()?;
+
+        Ok(())
+    }
+
+    /// Uses `munlock` to unlock the whole memory map.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn munlock(&mut self) -> Result<()> {
+        self.inner.munlock()?;
+
+        Ok(())
     }
 }
 
@@ -1585,5 +1724,45 @@ mod test {
 
         // read values back
         assert_eq!(&incr[..], &mmap[..]);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn private() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("mmap_private");
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .expect("open");
+        file.set_len(256_u64).expect("set_len");
+
+        let nulls = b"\0\0\0\0\0\0";
+        let write = b"abc123";
+        let mut read = [0u8; 6];
+
+        // Mmap that should not contain any writes
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
+
+        // Private mmap, changes should only be visible there
+        let mut mmap_private = unsafe {
+            MmapOptions::new()
+                .private()
+                .map_mut(&file)
+                .expect("map_mut")
+        };
+        (&mut mmap_private[..]).write_all(write).unwrap();
+        mmap_private.flush().unwrap();
+
+        // The private mmap contains the write
+        (&mmap_private[..]).read_exact(&mut read).unwrap();
+        assert_eq!(write, &read);
+
+        // The other mmap does not contain the write
+        (&mmap[..]).read_exact(&mut read).unwrap();
+        assert_eq!(nulls, &read);
     }
 }
