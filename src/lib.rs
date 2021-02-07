@@ -317,6 +317,17 @@ impl MmapOptions {
     pub fn map_anon(&self) -> Result<MmapMut> {
         MmapInner::map_anon(self.len.unwrap_or(0), self.stack).map(|inner| MmapMut { inner: inner })
     }
+
+    /// Creates a raw memory map.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the underlying system call fails, which can happen for a
+    /// variety of reasons, such as when the file is not open with read and write permissions.
+    pub fn map_raw(&self, file: &File) -> Result<MmapRaw> {
+        MmapInner::map_mut(self.get_len(file)?, file, self.offset)
+            .map(|inner| MmapRaw { inner: inner })
+    }
 }
 
 /// A handle to an immutable memory mapped buffer.
@@ -462,6 +473,61 @@ impl AsRef<[u8]> for Mmap {
 impl fmt::Debug for Mmap {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Mmap")
+            .field("ptr", &self.as_ptr())
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
+/// A handle to a raw memory mapped buffer.
+///
+/// This struct never hands out references to its interior, only raw pointers.
+/// This can be helpful when creating shared memory maps between untrusted processes.
+pub struct MmapRaw {
+    inner: MmapInner,
+}
+
+impl MmapRaw {
+    /// Creates a writeable memory map backed by a file.
+    ///
+    /// This is equivalent to calling `MmapOptions::new().map_raw(file)`.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the underlying system call fails, which can happen for a
+    /// variety of reasons, such as when the file is not open with read and write permissions.
+    pub fn map_raw(file: &File) -> Result<MmapRaw> {
+        MmapOptions::new().map_raw(file)
+    }
+
+    /// Returns a raw pointer to the memory mapped file.
+    ///
+    /// # Safety
+    ///
+    /// To safely dereference this pointer, you need to make sure that the file has not been
+    /// truncated since the memory map was created.
+    #[inline]
+    pub fn as_ptr(&self) -> *const u8 { self.inner.ptr() }
+
+    /// Returns an unsafe mutable pointer to the memory mapped file.
+    ///
+    /// # Safety
+    ///
+    /// To safely dereference this pointer, you need to make sure that the file has not been
+    /// truncated since the memory map was created.
+    #[inline]
+    pub fn as_mut_ptr(&self) -> *mut u8 { self.inner.ptr() as _ }
+
+    /// Returns the length in bytes of the memory map.
+    ///
+    /// Note that truncating the file can cause the length to change (and render this value unusable).
+    #[inline]
+    pub fn len(&self) -> usize { self.inner.len() }
+}
+
+impl fmt::Debug for MmapRaw {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("MmapRaw")
             .field("ptr", &self.as_ptr())
             .field("len", &self.len())
             .finish()
@@ -1110,5 +1176,24 @@ mod test {
         let mmap = mmap.make_mut().expect("make_mut");
         let mmap = mmap.make_exec().expect("make_exec");
         drop(mmap);
+    }
+
+    #[test]
+    fn raw() {
+        let tempdir = tempdir::TempDir::new("mmap").unwrap();
+        let path = tempdir.path().join("mmapraw");
+
+        let mut options = OpenOptions::new();
+        let mut file = options
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .expect("open");
+        file.write(b"abc123").unwrap();
+        let mmap = MmapOptions::new().map_raw(&file).unwrap();
+        assert_eq!(mmap.len(), 6);
+        assert!(!mmap.as_ptr().is_null());
+        assert_eq!(unsafe { std::ptr::read(mmap.as_ptr()) }, b'a');
     }
 }
