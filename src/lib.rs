@@ -12,6 +12,11 @@ mod unix;
 #[cfg(unix)]
 use crate::unix::MmapInner;
 
+#[cfg(not(any(unix, windows)))]
+mod stub;
+#[cfg(not(any(unix, windows)))]
+use crate::stub::MmapInner;
+
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
