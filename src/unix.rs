@@ -18,6 +18,12 @@ const MAP_STACK: libc::c_int = libc::MAP_STACK;
 )))]
 const MAP_STACK: libc::c_int = 0;
 
+#[cfg(any(target_os = "linux", target_os = "android"))]
+const MAP_POPULATE: libc::c_int = libc::MAP_POPULATE;
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+const MAP_POPULATE: libc::c_int = 0;
+
 pub struct MmapInner {
     ptr: *mut libc::c_void,
     len: usize,
@@ -66,51 +72,61 @@ impl MmapInner {
         }
     }
 
-    pub fn map(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map(len: usize, file: &File, offset: u64, populate: bool) -> io::Result<MmapInner> {
+        let populate = if populate { MAP_POPULATE } else { 0 };
         MmapInner::new(
             len,
             libc::PROT_READ,
-            libc::MAP_SHARED,
+            libc::MAP_SHARED | populate,
             file.as_raw_fd(),
             offset,
         )
     }
 
-    pub fn map_exec(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_exec(len: usize, file: &File, offset: u64, populate: bool) -> io::Result<MmapInner> {
+        let populate = if populate { MAP_POPULATE } else { 0 };
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_EXEC,
-            libc::MAP_SHARED,
+            libc::MAP_SHARED | populate,
             file.as_raw_fd(),
             offset,
         )
     }
 
-    pub fn map_mut(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_mut(len: usize, file: &File, offset: u64, populate: bool) -> io::Result<MmapInner> {
+        let populate = if populate { MAP_POPULATE } else { 0 };
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED,
+            libc::MAP_SHARED | populate,
             file.as_raw_fd(),
             offset,
         )
     }
 
-    pub fn map_copy(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_copy(len: usize, file: &File, offset: u64, populate: bool) -> io::Result<MmapInner> {
+        let populate = if populate { MAP_POPULATE } else { 0 };
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE,
+            libc::MAP_PRIVATE | populate,
             file.as_raw_fd(),
             offset,
         )
     }
 
-    pub fn map_copy_read_only(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_copy_read_only(
+        len: usize,
+        file: &File,
+        offset: u64,
+        populate: bool,
+    ) -> io::Result<MmapInner> {
+        let populate = if populate { MAP_POPULATE } else { 0 };
         MmapInner::new(
             len,
             libc::PROT_READ,
-            libc::MAP_PRIVATE,
+            libc::MAP_PRIVATE | populate,
             file.as_raw_fd(),
             offset,
         )

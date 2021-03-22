@@ -44,6 +44,7 @@ pub struct MmapOptions {
     offset: u64,
     len: Option<usize>,
     stack: bool,
+    populate: bool,
 }
 
 impl MmapOptions {
@@ -144,7 +145,7 @@ impl MmapOptions {
 
     /// Configures the anonymous memory map to be suitable for a process or thread stack.
     ///
-    /// This option corresponds to the `MAP_STACK` flag on Linux.
+    /// This option corresponds to the `MAP_STACK` flag on Linux. It has no effect on Windows.
     ///
     /// This option has no effect on file-backed memory maps.
     ///
@@ -160,6 +161,34 @@ impl MmapOptions {
     /// ```
     pub fn stack(&mut self) -> &mut Self {
         self.stack = true;
+        self
+    }
+
+    /// Populate (prefault) page tables for a mapping.
+    ///
+    /// For a file mapping, this causes read-ahead on the file. This will help to reduce blocking on page faults later.
+    ///
+    /// This option corresponds to the `MAP_POPULATE` flag on Linux. It has no effect on Windows.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use memmap2::MmapOptions;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let file = File::open("LICENSE-MIT")?;
+    ///
+    /// let mmap = unsafe {
+    ///     MmapOptions::new().populate().map(&file)?
+    /// };
+    ///
+    /// assert_eq!(&b"Copyright"[..], &mmap[..9]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn populate(&mut self) -> &mut Self {
+        self.populate = true;
         self
     }
 
@@ -192,7 +221,8 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map(&self, file: &File) -> Result<Mmap> {
-        MmapInner::map(self.get_len(file)?, file, self.offset).map(|inner| Mmap { inner: inner })
+        MmapInner::map(self.get_len(file)?, file, self.offset, self.populate)
+            .map(|inner| Mmap { inner: inner })
     }
 
     /// Creates a readable and executable memory map backed by a file.
@@ -202,7 +232,7 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
     pub unsafe fn map_exec(&self, file: &File) -> Result<Mmap> {
-        MmapInner::map_exec(self.get_len(file)?, file, self.offset)
+        MmapInner::map_exec(self.get_len(file)?, file, self.offset, self.populate)
             .map(|inner| Mmap { inner: inner })
     }
 
@@ -240,7 +270,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_mut(&self, file: &File) -> Result<MmapMut> {
-        MmapInner::map_mut(self.get_len(file)?, file, self.offset)
+        MmapInner::map_mut(self.get_len(file)?, file, self.offset, self.populate)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -269,7 +299,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_copy(&self, file: &File) -> Result<MmapMut> {
-        MmapInner::map_copy(self.get_len(file)?, file, self.offset)
+        MmapInner::map_copy(self.get_len(file)?, file, self.offset, self.populate)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -302,7 +332,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_copy_read_only(&self, file: &File) -> Result<Mmap> {
-        MmapInner::map_copy_read_only(self.get_len(file)?, file, self.offset)
+        MmapInner::map_copy_read_only(self.get_len(file)?, file, self.offset, self.populate)
             .map(|inner| Mmap { inner: inner })
     }
 
@@ -325,7 +355,7 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read and write permissions.
     pub fn map_raw(&self, file: &File) -> Result<MmapRaw> {
-        MmapInner::map_mut(self.get_len(file)?, file, self.offset)
+        MmapInner::map_mut(self.get_len(file)?, file, self.offset, self.populate)
             .map(|inner| MmapRaw { inner: inner })
     }
 }

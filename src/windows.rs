@@ -182,7 +182,7 @@ impl MmapInner {
         }
     }
 
-    pub fn map(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map(len: usize, file: &File, offset: u64, _populate: bool) -> io::Result<MmapInner> {
         let write = protection_supported(file.as_raw_handle(), PAGE_READWRITE);
         let exec = protection_supported(file.as_raw_handle(), PAGE_EXECUTE_READ);
         let mut access = FILE_MAP_READ;
@@ -209,7 +209,12 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_exec(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_exec(
+        len: usize,
+        file: &File,
+        offset: u64,
+        _populate: bool,
+    ) -> io::Result<MmapInner> {
         let write = protection_supported(file.as_raw_handle(), PAGE_READWRITE);
         let mut access = FILE_MAP_READ | FILE_MAP_EXECUTE;
         let protection = if write {
@@ -226,7 +231,7 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_mut(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_mut(len: usize, file: &File, offset: u64, _populate: bool) -> io::Result<MmapInner> {
         let exec = protection_supported(file.as_raw_handle(), PAGE_EXECUTE_READ);
         let mut access = FILE_MAP_READ | FILE_MAP_WRITE;
         let protection = if exec {
@@ -243,7 +248,12 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_copy(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_copy(
+        len: usize,
+        file: &File,
+        offset: u64,
+        _populate: bool,
+    ) -> io::Result<MmapInner> {
         let exec = protection_supported(file.as_raw_handle(), PAGE_EXECUTE_READWRITE);
         let mut access = FILE_MAP_COPY;
         let protection = if exec {
@@ -260,7 +270,12 @@ impl MmapInner {
         Ok(inner)
     }
 
-    pub fn map_copy_read_only(len: usize, file: &File, offset: u64) -> io::Result<MmapInner> {
+    pub fn map_copy_read_only(
+        len: usize,
+        file: &File,
+        offset: u64,
+        _populate: bool,
+    ) -> io::Result<MmapInner> {
         let write = protection_supported(file.as_raw_handle(), PAGE_READWRITE);
         let exec = protection_supported(file.as_raw_handle(), PAGE_EXECUTE_READ);
         let mut access = FILE_MAP_COPY;
