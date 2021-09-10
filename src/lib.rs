@@ -565,6 +565,9 @@ impl Mmap {
     }
 }
 
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl stable_deref_trait::StableDeref for Mmap {}
+
 impl Deref for Mmap {
     type Target = [u8];
 
@@ -854,6 +857,9 @@ impl MmapMut {
         Ok(Mmap { inner: self.inner })
     }
 }
+
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl stable_deref_trait::StableDeref for MmapMut {}
 
 impl Deref for MmapMut {
     type Target = [u8];
@@ -1374,5 +1380,23 @@ mod test {
         assert_eq!(mmap.len(), 6);
         assert!(!mmap.as_ptr().is_null());
         assert_eq!(unsafe { std::ptr::read(mmap.as_ptr()) }, b'a');
+    }
+
+    /// Something that relies on StableDeref
+    #[test]
+    #[cfg(feature = "stable_deref_trait")]
+    fn owning_ref() {
+        extern crate owning_ref;
+
+        let mut map = MmapMut::map_anon(128).unwrap();
+        map[10] = 42;
+        let owning = owning_ref::OwningRef::new(map);
+        let sliced = owning.map(|map| &map[10..20]);
+        assert_eq!(42, sliced[0]);
+
+        let map = sliced.into_owner().make_read_only().unwrap();
+        let owning = owning_ref::OwningRef::new(map);
+        let sliced = owning.map(|map| &map[10..20]);
+        assert_eq!(42, sliced[0]);
     }
 }

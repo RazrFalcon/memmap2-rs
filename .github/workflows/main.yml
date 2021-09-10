@@ -44,7 +44,7 @@ jobs:
       run: rustup default stable-${{ matrix.target }}
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --all-features
 
   test-macos-catalina:
     runs-on: macos-10.15
@@ -53,7 +53,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --all-features
 
   test-linux:
     runs-on: ubuntu-20.04
@@ -74,7 +74,7 @@ jobs:
       run: sudo apt install gcc-multilib
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --all-features
 
   check-stub:
     runs-on: ubuntu-20.04
@@ -91,7 +91,7 @@ jobs:
         override: true
 
     - name: Run check
-      run: cargo check --target wasm32-unknown-unknown
+      run: cargo check --all-features --target wasm32-unknown-unknown
 
   test-msrv:
     runs-on: ubuntu-20.04
@@ -102,9 +102,9 @@ jobs:
     - name: Install toolchain
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: 1.32.0
+        toolchain: 1.36.0
         profile: minimal
         override: true
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --all-features
