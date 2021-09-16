@@ -42,8 +42,38 @@ impl MmapInner {
         let alignment = offset % page_size() as u64;
         let aligned_offset = offset - alignment;
         let aligned_len = len + alignment as usize;
-        // Ensure a non-zero length for the underlying mapping
+
+        // `libc::mmap` does not support zero-size mappings. POSIX defines:
+        //
+        // https://pubs.opengroup.org/onlinepubs/9699919799/functions/mmap.html
+        // > If `len` is zero, `mmap()` shall fail and no mapping shall be established.
+        //
+        // So if we would create such a mapping, crate a one-byte mapping instead:
         let aligned_len = aligned_len.max(1);
+
+        // Note that in that case `MmapInner::len` is still set to zero,
+        // and `Mmap` will still dereferences to an empty slice.
+        //
+        // If this mapping is backed by an empty file, we create a mapping larger than the file.
+        // This is unusual but well-defined. On the same man page, POSIX further defines:
+        //
+        // > The `mmap()` function can be used to map a region of memory that is larger
+        // > than the current size of the object.
+        //
+        // (The object here is the file.)
+        //
+        // > Memory access within the mapping but beyond the current end of the underlying
+        // > objects may result in SIGBUS signals being sent to the process. The reason for this
+        // > is that the size of the object can be manipulated by other processes and can change
+        // > at any moment. The implementation should tell the application that a memory reference
+        // > is outside the object where this can be detected; otherwise, written data may be lost
+        // > and read data may not reflect actual data in the object.
+        //
+        // Because `MmapInner::len` is not incremented, this increment of `aligned_len`
+        // will not allow accesses past the end of the file and will not cause SIGBUS.
+        //
+        // (SIGBUS is still possible by mapping a non-empty file and then truncating it
+        // to a shorter size, but that is unrelated to this handling of empty files.)
 
         unsafe {
             let ptr = libc::mmap(
