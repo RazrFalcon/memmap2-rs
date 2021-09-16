@@ -52,8 +52,13 @@ pub struct MmapRawDescriptor(std::os::unix::io::RawFd);
 #[cfg(unix)]
 pub struct MmapRawDescriptor(async_std::os::unix::io::RawFd);
 
+#[cfg(not(feature = "async"))]
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
+
+#[cfg(feature = "async")]
+#[cfg(not(any(unix, windows)))]
+pub struct MmapRawDescriptor<'a>(&'a async_std::fs::File);
 
 pub trait MmapAsRawDesc {
     fn as_raw_desc(&self) -> MmapRawDescriptor;
@@ -116,9 +121,17 @@ impl MmapAsRawDesc for async_std::os::unix::io::RawFd {
     }
 }
 
-
+#[cfg(not(feature = "async"))]
 #[cfg(not(any(unix, windows)))]
 impl MmapAsRawDesc for &File {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(self)
+    }
+}
+
+#[cfg(feature = "async")]
+#[cfg(not(any(unix, windows)))]
+impl MmapAsRawDesc for &async_std::fs::File {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(self)
     }
