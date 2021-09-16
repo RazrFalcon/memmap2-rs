@@ -981,7 +981,7 @@ mod test {
         assert_eq!(&incr[..], &mmap[..]);
     }
 
-    /// Checks that a 0-length file will not be mapped.
+    /// Checks that "mapping" a 0-length file derefs to an empty slice.
     #[test]
     fn map_empty_file() {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
@@ -993,8 +993,10 @@ mod test {
             .create(true)
             .open(&path)
             .unwrap();
-        let mmap = unsafe { Mmap::map(&file) };
-        assert!(mmap.is_err());
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
+        assert!(mmap.is_empty());
+        let mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
+        assert!(mmap.is_empty());
     }
 
     #[test]
@@ -1019,7 +1021,7 @@ mod test {
 
     #[test]
     fn map_anon_zero_len() {
-        assert!(MmapOptions::new().map_anon().is_err())
+        assert!(MmapOptions::new().map_anon().unwrap().is_empty())
     }
 
     #[test]

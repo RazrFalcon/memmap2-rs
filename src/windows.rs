@@ -141,6 +141,8 @@ impl MmapInner {
         let alignment = offset % allocation_granularity() as u64;
         let aligned_offset = offset - alignment as u64;
         let aligned_len = len + alignment as usize;
+        // Ensure a non-zero length for the underlying mapping
+        let aligned_len = aligned_len.max(1);
 
         unsafe {
             let handle = CreateFileMappingW(
@@ -289,6 +291,8 @@ impl MmapInner {
     }
 
     pub fn map_anon(len: usize, _stack: bool) -> io::Result<MmapInner> {
+        // Ensure a non-zero length for the underlying mapping
+        let mapped_len = len.max(1);
         unsafe {
             // Create a mapping and view with maximum access permissions, then use `VirtualProtect`
             // to set the actual `Protection`. This way, we can set more permissive protection later
@@ -299,15 +303,15 @@ impl MmapInner {
                 INVALID_HANDLE_VALUE,
                 ptr::null_mut(),
                 PAGE_EXECUTE_READWRITE,
-                (len >> 16 >> 16) as DWORD,
-                (len & 0xffffffff) as DWORD,
+                (mapped_len >> 16 >> 16) as DWORD,
+                (mapped_len & 0xffffffff) as DWORD,
                 ptr::null(),
             );
             if handle.is_null() {
                 return Err(io::Error::last_os_error());
             }
             let access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
-            let ptr = MapViewOfFile(handle, access, 0, 0, len as SIZE_T);
+            let ptr = MapViewOfFile(handle, access, 0, 0, mapped_len as SIZE_T);
             CloseHandle(handle);
 
             if ptr.is_null() {
@@ -315,7 +319,7 @@ impl MmapInner {
             }
 
             let mut old = 0;
-            let result = VirtualProtect(ptr, len as SIZE_T, PAGE_READWRITE, &mut old);
+            let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
             if result != 0 {
                 Ok(MmapInner {
                     file: None,
