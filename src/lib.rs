@@ -32,11 +32,25 @@ use std::os::unix::io::AsRawFd;
 use std::slice;
 use std::usize;
 
+
+
+
+
+#[cfg(feature = "async")]
+#[cfg(windows)]
+pub struct MmapRawDescriptor(async_std::os::windows::io::RawHandle);
+
+#[cfg(not(feature = "async"))]
 #[cfg(windows)]
 pub struct MmapRawDescriptor<'a>(&'a File);
 
+#[cfg(not(feature = "async"))]
 #[cfg(unix)]
 pub struct MmapRawDescriptor(std::os::unix::io::RawFd);
+
+#[cfg(feature = "async")]
+#[cfg(unix)]
+pub struct MmapRawDescriptor(async_std::os::unix::io::RawFd);
 
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
@@ -45,6 +59,7 @@ pub trait MmapAsRawDesc {
     fn as_raw_desc(&self) -> MmapRawDescriptor;
 }
 
+#[cfg(not(feature = "async"))]
 #[cfg(windows)]
 impl MmapAsRawDesc for &File {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
@@ -52,6 +67,32 @@ impl MmapAsRawDesc for &File {
     }
 }
 
+#[cfg(feature = "async")]
+#[cfg(windows)]
+impl MmapAsRawDesc for &async_std::fs::File {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(self.as_raw_handle())
+    }
+}
+
+
+#[cfg(feature = "async")]
+#[cfg(windows)]
+impl MmapAsRawDesc for async_std::os::windows::io::RawHandle {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(*self)
+    }
+}
+
+#[cfg(feature = "async")]
+#[cfg(unix)]
+impl MmapAsRawDesc for &async_std::fs::File {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(self.as_raw_fd())
+    }
+}
+
+#[cfg(not(feature = "async"))]
 #[cfg(unix)]
 impl MmapAsRawDesc for &File {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
@@ -59,12 +100,22 @@ impl MmapAsRawDesc for &File {
     }
 }
 
+#[cfg(not(feature = "async"))]
 #[cfg(unix)]
 impl MmapAsRawDesc for std::os::unix::io::RawFd {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(*self)
     }
 }
+
+#[cfg(feature = "async")]
+#[cfg(unix)]
+impl MmapAsRawDesc for async_std::os::unix::io::RawFd {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(*self)
+    }
+}
+
 
 #[cfg(not(any(unix, windows)))]
 impl MmapAsRawDesc for &File {
