@@ -1,13 +1,17 @@
+#[cfg(not(feature = "async"))]
 extern crate memmap2;
-
-use std::env;
-use std::fs::File;
-use std::io::{self, Write};
-
+#[cfg(not(feature = "async"))]
 use memmap2::Mmap;
+#[cfg(not(feature = "async"))]
+use std::env;
+#[cfg(not(feature = "async"))]
+use std::fs::File;
+#[cfg(not(feature = "async"))]
+use std::io::{self, Write};
 
 /// Output a file's contents to stdout. The file path must be provided as the first process
 /// argument.
+#[cfg(not(feature = "async"))]
 fn main() {
     let path = env::args()
         .nth(1)
@@ -20,4 +24,9 @@ fn main() {
     io::stdout()
         .write_all(&mmap[..])
         .expect("failed to output the file contents");
+}
+
+#[cfg(feature = "async")]
+fn main() {
+    println!("Nothing to do")
 }

@@ -24,17 +24,15 @@ use crate::stub::file_len;
 use crate::stub::MmapInner;
 
 use std::fmt;
+#[cfg(not(feature = "async"))]
 use std::fs::File;
+
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 use std::slice;
 use std::usize;
-
-
-
-
 
 #[cfg(feature = "async")]
 #[cfg(windows)]
@@ -79,7 +77,6 @@ impl MmapAsRawDesc for &async_std::fs::File {
         MmapRawDescriptor(self.as_raw_handle())
     }
 }
-
 
 #[cfg(feature = "async")]
 #[cfg(windows)]
@@ -964,6 +961,7 @@ impl fmt::Debug for MmapMut {
     }
 }
 
+#[cfg(not(feature = "async"))]
 #[cfg(test)]
 mod test {
     extern crate tempdir;
