@@ -1,5 +1,6 @@
 extern crate libc;
 
+use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
 use std::{io, ptr};
 
@@ -261,11 +262,11 @@ fn page_size() -> usize {
 
 pub fn file_len(file: RawFd) -> io::Result<u64> {
     unsafe {
-        let mut stat: libc::stat = std::mem::zeroed();
+        let mut stat = MaybeUninit::<libc::stat>::uninit();
 
-        let result = libc::fstat(file, &mut stat);
+        let result = libc::fstat(file, stat.as_mut_ptr());
         if result == 0 {
-            Ok(stat.st_size as u64)
+            Ok(stat.assume_init().st_size as u64)
         } else {
             Err(io::Error::last_os_error())
         }
