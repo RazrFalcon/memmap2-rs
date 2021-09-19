@@ -243,13 +243,12 @@ impl Drop for MmapInner {
         let alignment = self.ptr as usize % page_size();
         let len = self.len + alignment;
         let len = len.max(1);
+        // Any errors during unmapping/closing are ignored as the only way
+        // to report them would be through panicking which is highly discouraged
+        // in Drop impls, c.f. https://github.com/rust-lang/lang-team/issues/97
         unsafe {
             let ptr = self.ptr.offset(-(alignment as isize));
-            assert!(
-                libc::munmap(ptr, len as libc::size_t) == 0,
-                "unable to unmap mmap: {}",
-                io::Error::last_os_error()
-            );
+            libc::munmap(ptr, len as libc::size_t);
         }
     }
 }

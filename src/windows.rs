@@ -489,13 +489,12 @@ impl Drop for MmapInner {
             return;
         }
         let alignment = self.ptr as usize % allocation_granularity();
+        // Any errors during unmapping/closing are ignored as the only way
+        // to report them would be through panicking which is highly discouraged
+        // in Drop impls, c.f. https://github.com/rust-lang/lang-team/issues/97
         unsafe {
             let ptr = self.ptr.offset(-(alignment as isize));
-            assert!(
-                UnmapViewOfFile(ptr) != 0,
-                "unable to unmap mmap: {}",
-                io::Error::last_os_error()
-            );
+            UnmapViewOfFile(ptr);
 
             if let Some(handle) = self.handle {
                 CloseHandle(handle);
