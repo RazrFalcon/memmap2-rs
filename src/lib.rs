@@ -22,6 +22,7 @@ use crate::stub::file_len;
 use crate::stub::MmapInner;
 
 use std::fmt;
+#[cfg(not(unix))]
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
@@ -48,16 +49,19 @@ impl MmapAsRawDesc for &File {
 }
 
 #[cfg(unix)]
-impl MmapAsRawDesc for &File {
+impl MmapAsRawDesc for RawFd {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
-        MmapRawDescriptor(self.as_raw_fd())
+        MmapRawDescriptor(*self)
     }
 }
 
 #[cfg(unix)]
-impl MmapAsRawDesc for RawFd {
+impl<'a, T> MmapAsRawDesc for &'a T
+where
+    T: AsRawFd,
+{
     fn as_raw_desc(&self) -> MmapRawDescriptor {
-        MmapRawDescriptor(*self)
+        MmapRawDescriptor(self.as_raw_fd())
     }
 }
 
