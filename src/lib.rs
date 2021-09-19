@@ -22,26 +22,31 @@ use crate::stub::file_len;
 use crate::stub::MmapInner;
 
 use std::fmt;
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::slice;
 use std::usize;
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
 
 #[cfg(unix)]
 pub struct MmapRawDescriptor(RawFd);
 
+#[cfg(windows)]
+pub struct MmapRawDescriptor(RawHandle);
+
 pub trait MmapAsRawDesc {
     fn as_raw_desc(&self) -> MmapRawDescriptor;
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 impl MmapAsRawDesc for &File {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(self)
@@ -62,6 +67,23 @@ where
 {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(self.as_raw_fd())
+    }
+}
+
+#[cfg(windows)]
+impl MmapAsRawDesc for RawHandle {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(*self)
+    }
+}
+
+#[cfg(windows)]
+impl<'a, T> MmapAsRawDesc for &'a T
+where
+    T: AsRawHandle,
+{
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        MmapRawDescriptor(self.as_raw_handle())
     }
 }
 
