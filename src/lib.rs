@@ -26,24 +26,21 @@ use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::slice;
 use std::usize;
 
-#[cfg(windows)]
+#[cfg(not(unix))]
 pub struct MmapRawDescriptor<'a>(&'a File);
 
 #[cfg(unix)]
-pub struct MmapRawDescriptor(std::os::unix::io::RawFd);
-
-#[cfg(not(any(unix, windows)))]
-pub struct MmapRawDescriptor<'a>(&'a File);
+pub struct MmapRawDescriptor(RawFd);
 
 pub trait MmapAsRawDesc {
     fn as_raw_desc(&self) -> MmapRawDescriptor;
 }
 
-#[cfg(windows)]
+#[cfg(not(unix))]
 impl MmapAsRawDesc for &File {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(self)
@@ -58,16 +55,9 @@ impl MmapAsRawDesc for &File {
 }
 
 #[cfg(unix)]
-impl MmapAsRawDesc for std::os::unix::io::RawFd {
+impl MmapAsRawDesc for RawFd {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
         MmapRawDescriptor(*self)
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-impl MmapAsRawDesc for &File {
-    fn as_raw_desc(&self) -> MmapRawDescriptor {
-        MmapRawDescriptor(self)
     }
 }
 
@@ -304,7 +294,7 @@ impl MmapOptions {
         let desc = file.as_raw_desc();
 
         MmapInner::map_exec(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| Mmap { inner: inner })
+            .map(|inner| Mmap { inner })
     }
 
     /// Creates a writeable memory map backed by a file.
@@ -344,7 +334,7 @@ impl MmapOptions {
         let desc = file.as_raw_desc();
 
         MmapInner::map_mut(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapMut { inner: inner })
+            .map(|inner| MmapMut { inner })
     }
 
     /// Creates a copy-on-write memory map backed by a file.
@@ -375,7 +365,7 @@ impl MmapOptions {
         let desc = file.as_raw_desc();
 
         MmapInner::map_copy(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapMut { inner: inner })
+            .map(|inner| MmapMut { inner })
     }
 
     /// Creates a copy-on-write read-only memory map backed by a file.
@@ -410,7 +400,7 @@ impl MmapOptions {
         let desc = file.as_raw_desc();
 
         MmapInner::map_copy_read_only(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| Mmap { inner: inner })
+            .map(|inner| Mmap { inner })
     }
 
     /// Creates an anonymous memory map.
@@ -435,7 +425,7 @@ impl MmapOptions {
         let desc = file.as_raw_desc();
 
         MmapInner::map_mut(self.get_len(&file)?, desc.0, self.offset, self.populate)
-            .map(|inner| MmapRaw { inner: inner })
+            .map(|inner| MmapRaw { inner })
     }
 }
 
