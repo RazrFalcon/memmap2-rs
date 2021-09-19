@@ -1,6 +1,7 @@
 extern crate libc;
 
 use std::os::unix::io::RawFd;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
 
 #[cfg(any(
@@ -256,7 +257,18 @@ unsafe impl Sync for MmapInner {}
 unsafe impl Send for MmapInner {}
 
 fn page_size() -> usize {
-    unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
+    static PAGE_SIZE: AtomicUsize = AtomicUsize::new(0);
+
+    match PAGE_SIZE.load(Ordering::Relaxed) {
+        0 => {
+            let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+
+            PAGE_SIZE.store(page_size, Ordering::Relaxed);
+
+            page_size
+        }
+        page_size => page_size,
+    }
 }
 
 pub fn file_len(file: RawFd) -> io::Result<u64> {
