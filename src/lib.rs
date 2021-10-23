@@ -1,4 +1,40 @@
 //! A cross-platform Rust API for memory mapped buffers.
+//!
+//! The core functionality is provided by either [`Mmap`] or [`MmapMut`],
+//! which correspond to mapping a [`File`] to a [`&[u8]`](https://doc.rust-lang.org/std/primitive.slice.html)
+//! or [`&mut [u8]`](https://doc.rust-lang.org/std/primitive.slice.html)
+//! respectively. Both function by dereferencing to a slice, allowing the
+//! [`Mmap`]/[`MmapMut`] to be used in the same way you would the equivelant slice
+//! types.
+//!
+//! [`File`]: std::fs::File
+//!
+//! # Examples
+//!
+//! For simple cases [`Mmap`] can be used directly:
+//!
+//! ```
+//! use std::fs::File;
+//! use std::io::Read;
+//!
+//! use memmap2::Mmap;
+//!
+//! # fn main() -> std::io::Result<()> {
+//! let mut file = File::open("LICENSE-APACHE")?;
+//!
+//! let mut contents = Vec::new();
+//! file.read_to_end(&mut contents)?;
+//!
+//! let mmap = unsafe { Mmap::map(&file)?  };
+//!
+//! assert_eq!(&contents[..], &mmap[..]);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! However for cases which require configuration of the mapping, then
+//! you can use [`MmapOptions`] in order to further configure a mapping
+//! before you create it.
 
 #[cfg(windows)]
 mod windows;
