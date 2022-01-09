@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- `flush`, `flush_async`, `flush_range` and `flush_async_range` to `MmapRaw` matching
+  the corresponding methods on `MmapMut`.
+  [@cberner](https://github.com/cberner)
 
 ## [0.5.1] - 2022-01-09
 ### Fixed

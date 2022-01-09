@@ -693,6 +693,81 @@ impl MmapRaw {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
+
+    /// Flushes outstanding memory map modifications to disk.
+    ///
+    /// When this method returns with a non-error result, all outstanding changes to a file-backed
+    /// memory map are guaranteed to be durably stored. The file's metadata (including last
+    /// modification timestamp) may not be updated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate memmap2;
+    /// # extern crate tempdir;
+    /// #
+    /// use std::fs::OpenOptions;
+    /// use std::io::Write;
+    /// use std::path::PathBuf;
+    /// use std::slice;
+    ///
+    /// use memmap2::MmapRaw;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let tempdir = tempdir::TempDir::new("mmap")?;
+    /// let path: PathBuf = /* path to file */
+    /// #   tempdir.path().join("flush");
+    /// let file = OpenOptions::new().read(true).write(true).create(true).open(&path)?;
+    /// file.set_len(128)?;
+    ///
+    /// let mut mmap = unsafe { MmapRaw::map_raw(&file)? };
+    ///
+    /// let mut memory = unsafe { slice::from_raw_parts_mut(mmap.as_mut_ptr(), 128) };
+    /// memory.write_all(b"Hello, world!")?;
+    /// mmap.flush()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn flush(&self) -> Result<()> {
+        let len = self.len();
+        self.inner.flush(0, len)
+    }
+
+    /// Asynchronously flushes outstanding memory map modifications to disk.
+    ///
+    /// This method initiates flushing modified pages to durable storage, but it will not wait for
+    /// the operation to complete before returning. The file's metadata (including last
+    /// modification timestamp) may not be updated.
+    pub fn flush_async(&self) -> Result<()> {
+        let len = self.len();
+        self.inner.flush_async(0, len)
+    }
+
+    /// Flushes outstanding memory map modifications in the range to disk.
+    ///
+    /// The offset and length must be in the bounds of the memory map.
+    ///
+    /// When this method returns with a non-error result, all outstanding changes to a file-backed
+    /// memory in the range are guaranteed to be durable stored. The file's metadata (including
+    /// last modification timestamp) may not be updated. It is not guaranteed the only the changes
+    /// in the specified range are flushed; other outstanding changes to the memory map may be
+    /// flushed as well.
+    pub fn flush_range(&self, offset: usize, len: usize) -> Result<()> {
+        self.inner.flush(offset, len)
+    }
+
+    /// Asynchronously flushes outstanding memory map modifications in the range to disk.
+    ///
+    /// The offset and length must be in the bounds of the memory map.
+    ///
+    /// This method initiates flushing modified pages to durable storage, but it will not wait for
+    /// the operation to complete before returning. The file's metadata (including last
+    /// modification timestamp) may not be updated. It is not guaranteed that the only changes
+    /// flushed are those in the specified range; other outstanding changes to the memory map may
+    /// be flushed as well.
+    pub fn flush_async_range(&self, offset: usize, len: usize) -> Result<()> {
+        self.inner.flush_async(offset, len)
+    }
 }
 
 impl fmt::Debug for MmapRaw {
