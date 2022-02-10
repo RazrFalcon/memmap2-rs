@@ -1036,6 +1036,7 @@ impl fmt::Debug for MmapMut {
 mod test {
     extern crate tempdir;
 
+    #[cfg(unix)]
     use crate::advice::Advice;
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
