@@ -8,35 +8,31 @@ use crate::{Mmap, MmapMut};
 /// Values supported by [Mmap::advise] and [MmapMut::advise] functions.
 /// Non unix platforms will ignore these values and return an error.
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
-#[non_exhaustive]
+#[repr(i32)]
 pub enum Advice {
     /// **MADV_NORMAL**
     ///
     /// No special treatment.  This is the default.
-    #[cfg(unix)]
-    Normal = libc::MADV_NORMAL as isize,
+    Normal = libc::MADV_NORMAL,
 
     /// **MADV_RANDOM**
     ///
     /// Expect page references in random order.  (Hence, read
     /// ahead may be less useful than normally.)
-    #[cfg(unix)]
-    Random = libc::MADV_RANDOM as isize,
+    Random = libc::MADV_RANDOM,
 
     /// **MADV_SEQUENTIAL**
     ///
     /// Expect page references in sequential order.  (Hence, pages
     /// in the given range can be aggressively read ahead, and may
     /// be freed soon after they are accessed.)
-    #[cfg(unix)]
-    Sequential = libc::MADV_SEQUENTIAL as isize,
+    Sequential = libc::MADV_SEQUENTIAL,
 
     /// **MADV_WILLNEED**
     ///
     /// Expect access in the near future.  (Hence, it might be a
     /// good idea to read some pages ahead.)
-    #[cfg(unix)]
-    WillNeed = libc::MADV_WILLNEED as isize,
+    WillNeed = libc::MADV_WILLNEED,
 
     /// **MADV_DONTNEED**
     ///
@@ -67,8 +63,7 @@ pub enum Advice {
     /// not managed by the virtual memory subsystem.  Such pages
     /// are typically created by device drivers that map the pages
     /// into user space.)
-    #[cfg(unix)]
-    DontNeed = libc::MADV_DONTNEED as isize,
+    DontNeed = libc::MADV_DONTNEED,
 
     //
     // The rest are Linux-specific
@@ -97,7 +92,7 @@ pub enum Advice {
     /// in the given range are freed instantly, regardless of
     /// memory pressure.
     #[cfg(target_os = "linux")]
-    Free = libc::MADV_FREE as isize,
+    Free = libc::MADV_FREE,
 
     /// **MADV_REMOVE** - Linux only (since Linux 2.6.16)
     ///
@@ -118,7 +113,7 @@ pub enum Advice {
     /// EINVAL and other filesystems fail with the error
     /// EOPNOTSUPP.
     #[cfg(target_os = "linux")]
-    Remove = libc::MADV_REMOVE as isize,
+    Remove = libc::MADV_REMOVE,
 
     /// **MADV_DONTFORK** - Linux only (since Linux 2.6.16)
     ///
@@ -129,14 +124,14 @@ pub enum Advice {
     /// relocations cause problems for hardware that DMAs into the
     /// page.)
     #[cfg(target_os = "linux")]
-    DontFork = libc::MADV_DONTFORK as isize,
+    DontFork = libc::MADV_DONTFORK,
 
     /// **MADV_DOFORK** - Linux only (since Linux 2.6.16)
     ///
     /// Undo the effect of MADV_DONTFORK, restoring the default
     /// behavior, whereby a mapping is inherited across fork(2).
     #[cfg(target_os = "linux")]
-    DoFork = libc::MADV_DOFORK as isize,
+    DoFork = libc::MADV_DOFORK,
 
     /// **MADV_MERGEABLE** - Linux only (since Linux 2.6.32)
     ///
@@ -159,7 +154,7 @@ pub enum Advice {
     /// available only if the kernel was configured with
     /// CONFIG_KSM.
     #[cfg(target_os = "linux")]
-    Mergeable = libc::MADV_MERGEABLE as isize,
+    Mergeable = libc::MADV_MERGEABLE,
 
     /// **MADV_UNMERGEABLE** - Linux only (since Linux 2.6.32)
     ///
@@ -168,7 +163,7 @@ pub enum Advice {
     /// it had merged in the address range specified by addr and
     /// length.
     #[cfg(target_os = "linux")]
-    Unmergeable = libc::MADV_UNMERGEABLE as isize,
+    Unmergeable = libc::MADV_UNMERGEABLE,
 
     /// **MADV_HUGEPAGE** - Linux only (since Linux 2.6.38)
     ///
@@ -207,14 +202,14 @@ pub enum Advice {
     /// available only if the kernel was configured with
     /// CONFIG_TRANSPARENT_HUGEPAGE.
     #[cfg(target_os = "linux")]
-    HugePage = libc::MADV_HUGEPAGE as isize,
+    HugePage = libc::MADV_HUGEPAGE,
 
     /// **MADV_NOHUGEPAGE** - Linux only (since Linux 2.6.38)
     ///
     /// Ensures that memory in the address range specified by addr
     /// and length will not be backed by transparent hugepages.
     #[cfg(target_os = "linux")]
-    NoHugePage = libc::MADV_NOHUGEPAGE as isize,
+    NoHugePage = libc::MADV_NOHUGEPAGE,
 
     /// **MADV_DONTDUMP** - Linux only (since Linux 3.4)
     ///
@@ -226,13 +221,13 @@ pub enum Advice {
     /// set via the `/proc/[pid]/coredump_filter` file (see
     /// core(5)).
     #[cfg(target_os = "linux")]
-    DontDump = libc::MADV_DONTDUMP as isize,
+    DontDump = libc::MADV_DONTDUMP,
 
     /// **MADV_DODUMP** - Linux only (since Linux 3.4)
     ///
     /// Undo the effect of an earlier MADV_DONTDUMP.
     #[cfg(target_os = "linux")]
-    DoDump = libc::MADV_DODUMP as isize,
+    DoDump = libc::MADV_DODUMP,
 
     /// **MADV_HWPOISON** - Linux only (since Linux 2.6.32)
     ///
@@ -247,7 +242,7 @@ pub enum Advice {
     /// handling code; it is available only if the kernel was
     /// configured with CONFIG_MEMORY_FAILURE.
     #[cfg(target_os = "linux")]
-    HwPoison = libc::MADV_HWPOISON as isize,
+    HwPoison = libc::MADV_HWPOISON,
     // Future expansion:
     // MADV_SOFT_OFFLINE  (since Linux 2.6.33)
     // MADV_WIPEONFORK  (since Linux 4.14)

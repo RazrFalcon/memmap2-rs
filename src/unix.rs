@@ -1,7 +1,6 @@
 extern crate libc;
 
 use std::mem::MaybeUninit;
-use std::os::raw::c_int;
 use std::os::unix::io::RawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
@@ -242,7 +241,7 @@ impl MmapInner {
 
     pub fn advise(&self, advice: Advice) -> io::Result<()> {
         unsafe {
-            if 0 != libc::madvise(self.ptr, self.len, advice as c_int) {
+            if libc::madvise(self.ptr, self.len, advice as i32) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())

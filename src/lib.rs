@@ -1280,7 +1280,7 @@ mod test {
             .open(&path)
             .unwrap();
 
-        let offset = u32::MAX as u64 + 2;
+        let offset = u32::max_value() as u64 + 2;
         let len = 5432;
         file.set_len(offset + len as u64).unwrap();
 
@@ -1513,6 +1513,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(unix)]
     fn advise() {
         let expected_len = 128;
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
@@ -1529,10 +1530,6 @@ mod test {
 
         // Test MmapMut::advise
         let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
-        #[cfg(not(unix))]
-        mmap.advise(Advice::Random)
-            .expect_err("mmap advising should not be supported on Windows");
-        #[cfg(unix)]
         mmap.advise(Advice::Random)
             .expect("mmap advising should be supported on unix");
 
@@ -1554,10 +1551,6 @@ mod test {
         // Set advice and Read from the read-only map
         let mmap = unsafe { Mmap::map(&file).unwrap() };
 
-        #[cfg(not(unix))]
-        mmap.advise(Advice::Random)
-            .expect_err("mmap advising should not be supported on Windows");
-        #[cfg(unix)]
         mmap.advise(Advice::Random)
             .expect("mmap advising should be supported on unix");
 
