@@ -40,8 +40,7 @@
 #[cfg_attr(windows, path = "windows.rs")]
 #[cfg_attr(not(any(unix, windows)), path = "stub.rs")]
 mod os;
-use crate::os::file_len;
-use crate::os::MmapInner;
+use crate::os::{file_len, MmapInner};
 
 use std::fmt;
 #[cfg(not(any(unix, windows)))]
