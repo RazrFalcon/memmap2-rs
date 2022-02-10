@@ -1,10 +1,10 @@
 extern crate libc;
 
-use std::{io, ptr};
 use std::mem::MaybeUninit;
 use std::os::raw::c_int;
 use std::os::unix::io::RawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{io, ptr};
 
 use crate::advice::Advice;
 

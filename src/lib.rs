@@ -36,7 +36,6 @@
 //! you can use [`MmapOptions`] in order to further configure a mapping
 //! before you create it.
 
-
 pub mod advice;
 use crate::advice::Advice;
 

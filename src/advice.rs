@@ -43,7 +43,6 @@ pub enum Advice {
     //
     // The rest are Linux-specific
     //
-
     /// MADV_FREE - Linux only (since Linux 4.5)
     #[cfg(target_os = "linux")]
     Free = libc::MADV_FREE as isize,
@@ -109,7 +108,6 @@ pub enum Advice {
     HwPoison = libc::MADV_HWPOISON as isize,
     #[cfg(not(unix))]
     HwPoison,
-
     // Future expansion:
     // MADV_SOFT_OFFLINE  (since Linux 2.6.33)
     // MADV_WIPEONFORK  (since Linux 4.14)
