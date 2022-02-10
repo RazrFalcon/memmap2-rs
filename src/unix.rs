@@ -5,6 +5,8 @@ use std::os::unix::io::RawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
 
+use crate::advice::Advice;
+
 #[cfg(any(
     all(target_os = "linux", not(target_arch = "mips")),
     target_os = "freebsd",
@@ -235,6 +237,16 @@ impl MmapInner {
     #[inline]
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn advise(&self, advice: Advice) -> io::Result<()> {
+        unsafe {
+            if libc::madvise(self.ptr, self.len, advice as i32) != 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
