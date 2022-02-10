@@ -4,6 +4,7 @@
 use std::os::raw::c_void;
 use std::os::windows::io::RawHandle;
 use std::{io, mem, ptr};
+use crate::advice::Advice;
 
 type BOOL = i32;
 type WORD = u16;
@@ -480,6 +481,13 @@ impl MmapInner {
     #[inline]
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn advise(&self, _: Advice) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Access advising is not supported on Windows",
+        ))
     }
 }
 

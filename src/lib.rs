@@ -43,6 +43,9 @@ use crate::windows::file_len;
 #[cfg(windows)]
 use crate::windows::MmapInner;
 
+pub mod advice;
+use crate::advice::Advice;
+
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
@@ -613,6 +616,12 @@ impl Mmap {
         self.inner.make_mut()?;
         Ok(MmapMut { inner: self.inner })
     }
+
+    /// Advise OS how this memory map will be accessed. Only supported on Unix.
+    /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    pub fn advise(&self, advice: Advice) -> Result<()> {
+        self.inner.advise(advice)
+    }
 }
 
 #[cfg(feature = "stable_deref_trait")]
@@ -981,6 +990,12 @@ impl MmapMut {
         self.inner.make_exec()?;
         Ok(Mmap { inner: self.inner })
     }
+
+    /// Advise OS how this memory map will be accessed. Only supported on Unix.
+    /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    pub fn advise(&self, advice: Advice) -> Result<()> {
+        self.inner.advise(advice)
+    }
 }
 
 #[cfg(feature = "stable_deref_trait")]
@@ -1035,6 +1050,7 @@ mod test {
     use std::os::unix::io::AsRawFd;
     #[cfg(windows)]
     use std::os::windows::fs::OpenOptionsExt;
+    use crate::advice::Advice;
 
     #[cfg(windows)]
     const GENERIC_ALL: u32 = 0x10000000;
@@ -1502,5 +1518,55 @@ mod test {
         let owning = owning_ref::OwningRef::new(map);
         let sliced = owning.map(|map| &map[10..20]);
         assert_eq!(42, sliced[0]);
+    }
+
+    #[test]
+    fn advise() {
+        let expected_len = 128;
+        let tempdir = tempdir::TempDir::new("mmap").unwrap();
+        let path = tempdir.path().join("mmap_advise");
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .unwrap();
+
+        file.set_len(expected_len as u64).unwrap();
+
+        // Test MmapMut::advise
+        let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
+        #[cfg(not(unix))]
+        mmap.advise(Advice::Random).expect_err("mmap advising should not be supported on Windows");
+        #[cfg(unix)]
+        mmap.advise(Advice::Random).expect("mmap advising should be supported on unix");
+
+        let len = mmap.len();
+        assert_eq!(expected_len, len);
+
+        let zeros = vec![0; len];
+        let incr: Vec<u8> = (0..len as u8).collect();
+
+        // check that the mmap is empty
+        assert_eq!(&zeros[..], &mmap[..]);
+
+        // write values into the mmap
+        (&mut mmap[..]).write_all(&incr[..]).unwrap();
+
+        // read values back
+        assert_eq!(&incr[..], &mmap[..]);
+
+
+        // Set advice and Read from the read-only map
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
+
+        #[cfg(not(unix))]
+        mmap.advise(Advice::Random).expect_err("mmap advising should not be supported on Windows");
+        #[cfg(unix)]
+        mmap.advise(Advice::Random).expect("mmap advising should be supported on unix");
+
+        // read values back
+        assert_eq!(&incr[..], &mmap[..]);
     }
 }
