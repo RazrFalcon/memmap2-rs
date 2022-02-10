@@ -982,7 +982,7 @@ impl MmapMut {
     }
 
     /// Advise OS how this memory map will be accessed. Only supported on Unix.
-    /// 
+    ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {

@@ -73,7 +73,6 @@ pub enum Advice {
     //
     // The rest are Linux-specific
     //
-
     /// **MADV_FREE** - Linux only (since Linux 4.5)
     ///
     /// The application no longer requires the pages in the range
@@ -249,7 +248,6 @@ pub enum Advice {
     /// configured with CONFIG_MEMORY_FAILURE.
     #[cfg(target_os = "linux")]
     HwPoison = libc::MADV_HWPOISON as isize,
-
     // Future expansion:
     // MADV_SOFT_OFFLINE  (since Linux 2.6.33)
     // MADV_WIPEONFORK  (since Linux 4.14)
