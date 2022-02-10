@@ -5,7 +5,7 @@ use crate::{Mmap, MmapMut};
 /// Values supported by [Mmap::advise] and [MmapMut::advise] functions.
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Advice {
     /// **MADV_NORMAL**
     ///
