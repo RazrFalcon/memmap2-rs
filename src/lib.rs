@@ -41,12 +41,26 @@ mod advice;
 #[cfg(unix)]
 pub use crate::advice::Advice;
 
-#[cfg_attr(unix, path = "unix.rs")]
-#[cfg_attr(windows, path = "windows.rs")]
-#[cfg_attr(not(any(unix, windows)), path = "stub.rs")]
-mod os;
-use crate::os::file_len;
-use crate::os::MmapInner;
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use crate::windows::file_len;
+#[cfg(windows)]
+use crate::windows::MmapInner;
+
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+use crate::unix::file_len;
+#[cfg(unix)]
+use crate::unix::MmapInner;
+
+#[cfg(not(any(unix, windows)))]
+mod stub;
+#[cfg(not(any(unix, windows)))]
+use crate::stub::file_len;
+#[cfg(not(any(unix, windows)))]
+use crate::stub::MmapInner;
 
 use std::fmt;
 #[cfg(not(any(unix, windows)))]
