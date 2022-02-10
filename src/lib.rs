@@ -37,9 +37,9 @@
 //! before you create it.
 
 #[cfg(unix)]
-pub mod advice;
+mod advice;
 #[cfg(unix)]
-use crate::advice::Advice;
+pub use crate::advice::Advice;
 
 #[cfg_attr(unix, path = "unix.rs")]
 #[cfg_attr(windows, path = "windows.rs")]
