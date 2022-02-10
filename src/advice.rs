@@ -2,11 +2,7 @@
 #[allow(unused_imports)]
 use crate::{Mmap, MmapMut};
 
-// TODO: Once stmt_expr_attributes becomes stable, it might be possible to rewrite this without duplicating enum names
-// See https://github.com/rust-lang/rfcs/blob/161ce8a26e70226a88e0d4d43c7914a714050330/text/0016-more-attributes.md
-
 /// Values supported by [Mmap::advise] and [MmapMut::advise] functions.
-/// Non unix platforms will ignore these values and return an error.
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
 #[repr(i32)]
 pub enum Advice {
