@@ -1,10 +1,10 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+use crate::advice::Advice;
 use std::os::raw::c_void;
 use std::os::windows::io::RawHandle;
 use std::{io, mem, ptr};
-use crate::advice::Advice;
 
 type BOOL = i32;
 type WORD = u16;

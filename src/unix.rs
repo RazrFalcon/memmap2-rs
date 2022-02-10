@@ -242,11 +242,7 @@ impl MmapInner {
 
     pub fn advise(&self, advice: Advice) -> io::Result<()> {
         unsafe {
-            if 0 != libc::madvise(
-                self.ptr,
-                self.len,
-                advice as c_int,
-            ) {
+            if 0 != libc::madvise(self.ptr, self.len, advice as c_int) {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())

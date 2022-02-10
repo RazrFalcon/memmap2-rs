@@ -36,29 +36,16 @@
 //! you can use [`MmapOptions`] in order to further configure a mapping
 //! before you create it.
 
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-use crate::windows::file_len;
-#[cfg(windows)]
-use crate::windows::MmapInner;
 
 pub mod advice;
 use crate::advice::Advice;
 
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-use crate::unix::file_len;
-#[cfg(unix)]
-use crate::unix::MmapInner;
-
-#[cfg(not(any(unix, windows)))]
-mod stub;
-#[cfg(not(any(unix, windows)))]
-use crate::stub::file_len;
-#[cfg(not(any(unix, windows)))]
-use crate::stub::MmapInner;
+#[cfg_attr(unix, path = "unix.rs")]
+#[cfg_attr(windows, path = "windows.rs")]
+#[cfg_attr(not(any(unix, windows)), path = "stub.rs")]
+mod os;
+use crate::os::file_len;
+use crate::os::MmapInner;
 
 use std::fmt;
 #[cfg(not(any(unix, windows)))]
@@ -1044,13 +1031,13 @@ impl fmt::Debug for MmapMut {
 mod test {
     extern crate tempdir;
 
+    use crate::advice::Advice;
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
     #[cfg(unix)]
     use std::os::unix::io::AsRawFd;
     #[cfg(windows)]
     use std::os::windows::fs::OpenOptionsExt;
-    use crate::advice::Advice;
 
     #[cfg(windows)]
     const GENERIC_ALL: u32 = 0x10000000;
@@ -1538,9 +1525,11 @@ mod test {
         // Test MmapMut::advise
         let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
         #[cfg(not(unix))]
-        mmap.advise(Advice::Random).expect_err("mmap advising should not be supported on Windows");
+        mmap.advise(Advice::Random)
+            .expect_err("mmap advising should not be supported on Windows");
         #[cfg(unix)]
-        mmap.advise(Advice::Random).expect("mmap advising should be supported on unix");
+        mmap.advise(Advice::Random)
+            .expect("mmap advising should be supported on unix");
 
         let len = mmap.len();
         assert_eq!(expected_len, len);
@@ -1557,14 +1546,15 @@ mod test {
         // read values back
         assert_eq!(&incr[..], &mmap[..]);
 
-
         // Set advice and Read from the read-only map
         let mmap = unsafe { Mmap::map(&file).unwrap() };
 
         #[cfg(not(unix))]
-        mmap.advise(Advice::Random).expect_err("mmap advising should not be supported on Windows");
+        mmap.advise(Advice::Random)
+            .expect_err("mmap advising should not be supported on Windows");
         #[cfg(unix)]
-        mmap.advise(Advice::Random).expect("mmap advising should be supported on unix");
+        mmap.advise(Advice::Random)
+            .expect("mmap advising should be supported on unix");
 
         // read values back
         assert_eq!(&incr[..], &mmap[..]);

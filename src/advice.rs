@@ -40,69 +40,80 @@ pub enum Advice {
     #[cfg(not(unix))]
     DontNeed,
 
-    /// MADV_FREE
-    #[cfg(unix)]
+    //
+    // The rest are Linux-specific
+    //
+
+    /// MADV_FREE - Linux only (since Linux 4.5)
+    #[cfg(target_os = "linux")]
     Free = libc::MADV_FREE as isize,
     #[cfg(not(unix))]
     Free,
 
-    /// MADV_REMOVE
-    #[cfg(unix)]
+    /// MADV_REMOVE - Linux only (since Linux 2.6.16)
+    #[cfg(target_os = "linux")]
     Remove = libc::MADV_REMOVE as isize,
     #[cfg(not(unix))]
     Remove,
 
-    /// MADV_DONTFORK
-    #[cfg(unix)]
+    /// MADV_DONTFORK - Linux only (since Linux 2.6.16)
+    #[cfg(target_os = "linux")]
     DontFork = libc::MADV_DONTFORK as isize,
     #[cfg(not(unix))]
     DontFork,
 
-    /// MADV_DOFORK
-    #[cfg(unix)]
+    /// MADV_DOFORK - Linux only (since Linux 2.6.16)
+    #[cfg(target_os = "linux")]
     DoFork = libc::MADV_DOFORK as isize,
     #[cfg(not(unix))]
     DoFork,
 
-    /// MADV_MERGEABLE
-    #[cfg(unix)]
+    /// MADV_MERGEABLE - Linux only (since Linux 2.6.32)
+    #[cfg(target_os = "linux")]
     Mergeable = libc::MADV_MERGEABLE as isize,
     #[cfg(not(unix))]
     Mergeable,
 
-    /// MADV_UNMERGEABLE
-    #[cfg(unix)]
+    /// MADV_UNMERGEABLE - Linux only (since Linux 2.6.32)
+    #[cfg(target_os = "linux")]
     Unmergeable = libc::MADV_UNMERGEABLE as isize,
     #[cfg(not(unix))]
     Unmergeable,
 
-    /// MADV_HUGEPAGE
-    #[cfg(unix)]
+    /// MADV_HUGEPAGE - Linux only (since Linux 2.6.38)
+    #[cfg(target_os = "linux")]
     HugePage = libc::MADV_HUGEPAGE as isize,
     #[cfg(not(unix))]
     HugePage,
 
-    /// MADV_NOHUGEPAGE
-    #[cfg(unix)]
+    /// MADV_NOHUGEPAGE - Linux only (since Linux 2.6.38)
+    #[cfg(target_os = "linux")]
     NoHugePage = libc::MADV_NOHUGEPAGE as isize,
     #[cfg(not(unix))]
     NoHugePage,
 
-    /// MADV_DONTDUMP
-    #[cfg(unix)]
+    /// MADV_DONTDUMP - Linux only (since Linux 3.4)
+    #[cfg(target_os = "linux")]
     DontDump = libc::MADV_DONTDUMP as isize,
     #[cfg(not(unix))]
     DontDump,
 
-    /// MADV_DODUMP
-    #[cfg(unix)]
+    /// MADV_DODUMP - Linux only (since Linux 3.4)
+    #[cfg(target_os = "linux")]
     DoDump = libc::MADV_DODUMP as isize,
     #[cfg(not(unix))]
     DoDump,
 
-    /// MADV_HWPOISON
-    #[cfg(unix)]
+    /// MADV_HWPOISON - Linux only (since Linux 2.6.32)
+    #[cfg(target_os = "linux")]
     HwPoison = libc::MADV_HWPOISON as isize,
     #[cfg(not(unix))]
     HwPoison,
+
+    // Future expansion:
+    // MADV_SOFT_OFFLINE  (since Linux 2.6.33)
+    // MADV_WIPEONFORK  (since Linux 4.14)
+    // MADV_KEEPONFORK  (since Linux 4.14)
+    // MADV_COLD  (since Linux 5.4)
+    // MADV_PAGEOUT  (since Linux 5.4)
 }
