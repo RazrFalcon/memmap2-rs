@@ -36,7 +36,9 @@
 //! you can use [`MmapOptions`] in order to further configure a mapping
 //! before you create it.
 
+#[cfg(unix)]
 pub mod advice;
+#[cfg(unix)]
 use crate::advice::Advice;
 
 #[cfg_attr(unix, path = "unix.rs")]
@@ -604,7 +606,9 @@ impl Mmap {
     }
 
     /// Advise OS how this memory map will be accessed. Only supported on Unix.
+    ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         self.inner.advise(advice)
     }
@@ -978,7 +982,9 @@ impl MmapMut {
     }
 
     /// Advise OS how this memory map will be accessed. Only supported on Unix.
+    /// 
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         self.inner.advise(advice)
     }
@@ -1274,7 +1280,7 @@ mod test {
             .open(&path)
             .unwrap();
 
-        let offset = u32::max_value() as u64 + 2;
+        let offset = u32::MAX as u64 + 2;
         let len = 5432;
         file.set_len(offset + len as u64).unwrap();
 

@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use crate::advice::Advice;
 use std::os::raw::c_void;
 use std::os::windows::io::RawHandle;
 use std::{io, mem, ptr};
@@ -481,13 +480,6 @@ impl MmapInner {
     #[inline]
     pub fn len(&self) -> usize {
         self.len
-    }
-
-    pub fn advise(&self, _: Advice) -> io::Result<()> {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Access advising is not supported on Windows",
-        ))
     }
 }
 

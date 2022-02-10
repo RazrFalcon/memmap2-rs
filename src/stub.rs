@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io;
 
-use crate::advice::Advice;
-
 pub struct MmapInner {
     // Private member to prevent external construction
     // (might be nice to change the type to ! once that's stable)
@@ -73,10 +71,6 @@ impl MmapInner {
 
     #[inline]
     pub fn len(&self) -> usize {
-        unreachable!("self unconstructable");
-    }
-
-    pub fn advise(&self, _: Advice) -> io::Result<()> {
         unreachable!("self unconstructable");
     }
 }
