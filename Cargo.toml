@@ -16,5 +16,5 @@ stable_deref_trait = { version = "1.0", optional = true }
 libc = "0.2"
 
 [dev-dependencies]
-tempdir = "0.3"
+tempfile = "3"
 owning_ref = "0.4.1"
