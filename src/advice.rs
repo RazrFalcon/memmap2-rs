@@ -88,7 +88,7 @@ pub enum Advice {
     /// 4.12, when freeing pages on a swapless system, the pages
     /// in the given range are freed instantly, regardless of
     /// memory pressure.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
     Free = libc::MADV_FREE,
 
     /// **MADV_REMOVE** - Linux only (since Linux 2.6.16)
@@ -240,6 +240,22 @@ pub enum Advice {
     /// configured with CONFIG_MEMORY_FAILURE.
     #[cfg(target_os = "linux")]
     HwPoison = libc::MADV_HWPOISON,
+
+    /// **MADV_ZERO_WIRED_PAGES** - Darwin only
+    ///
+    /// Indicates that the application would like the wired pages in this address range to be
+    /// zeroed out if the address range is deallocated without first unwiring the pages (i.e.
+    /// a munmap(2) without a preceding munlock(2) or the application quits).  This is used
+    /// with madvise() system call.
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    ZeroWiredPages = libc::MADV_ZERO_WIRED_PAGES,
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    FreeReusable = libc::MADV_FREE_REUSABLE,
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    FreeReuse = libc::MADV_FREE_REUSE,
+
     // Future expansion:
     // MADV_SOFT_OFFLINE  (since Linux 2.6.33)
     // MADV_WIPEONFORK  (since Linux 4.14)
