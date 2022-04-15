@@ -65,7 +65,7 @@ pub enum Advice {
     //
     // The rest are Linux-specific
     //
-    /// **MADV_FREE** - Linux only (since Linux 4.5)
+    /// **MADV_FREE** - Linux (since Linux 4.5) and Darwin
     ///
     /// The application no longer requires the pages in the range
     /// specified by addr and len.  The kernel can thus free these
@@ -250,9 +250,17 @@ pub enum Advice {
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     ZeroWiredPages = libc::MADV_ZERO_WIRED_PAGES,
 
+    /// **MADV_FREE_REUSABLE** - Darwin only
+    ///
+    /// Behaves like **MADV_FREE**, but the freed pages are accounted for in the RSS of the process.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     FreeReusable = libc::MADV_FREE_REUSABLE,
 
+    /// **MADV_FREE_REUSE** - Darwin only
+    ///
+    /// Marks a memory region previously freed by **MADV_FREE_REUSABLE** as non-reusable, accounts
+    /// for the pages in the RSS of the process. Pages that have been freed will be replaced by
+    /// zero-filled pages on demand, other pages will be left as is.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     FreeReuse = libc::MADV_FREE_REUSE,
 
