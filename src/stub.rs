@@ -1,10 +1,10 @@
 use std::fs::File;
 use std::io;
 
+enum Never {}
+
 pub struct MmapInner {
-    // Private member to prevent external construction
-    // (might be nice to change the type to ! once that's stable)
-    __: (),
+    never: Never,
 }
 
 impl MmapInner {
@@ -40,38 +40,38 @@ impl MmapInner {
     }
 
     pub fn flush(&self, _: usize, _: usize) -> io::Result<()> {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     pub fn flush_async(&self, _: usize, _: usize) -> io::Result<()> {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     pub fn make_read_only(&mut self) -> io::Result<()> {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     pub fn make_exec(&mut self) -> io::Result<()> {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     pub fn make_mut(&mut self) -> io::Result<()> {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     #[inline]
     pub fn ptr(&self) -> *const u8 {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     #[inline]
     pub fn mut_ptr(&mut self) -> *mut u8 {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        unreachable!("self unconstructable");
+        match self.never {}
     }
 }
 
