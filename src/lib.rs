@@ -203,10 +203,6 @@ impl MmapOptions {
     ///
     /// For file-backed memory maps, the length will default to the file length.
     ///
-    /// # Panics
-    ///
-    /// Panics if the given `len` exceeds `isize::MAX` bytes.
-    ///
     /// # Example
     ///
     /// ```
@@ -224,13 +220,6 @@ impl MmapOptions {
     /// # }
     /// ```
     pub fn len(&mut self, len: usize) -> &mut Self {
-        if mem::size_of::<usize>() < 8 {
-            assert!(
-                len < isize::MAX as usize,
-                "memory map length overflows isize"
-            );
-        }
-
         self.len = Some(len);
         self
     }
@@ -472,7 +461,16 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails.
     pub fn map_anon(&self) -> Result<MmapMut> {
-        MmapInner::map_anon(self.len.unwrap_or(0), self.stack).map(|inner| MmapMut { inner })
+        let len = self.len.unwrap_or(0);
+
+        if mem::size_of::<usize>() < 8 && len > isize::MAX as usize {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "memory map length overflows isize",
+            ));
+        }
+
+        MmapInner::map_anon(len, self.stack).map(|inner| MmapMut { inner })
     }
 
     /// Creates a raw memory map.
@@ -865,10 +863,6 @@ impl MmapMut {
     /// # Errors
     ///
     /// This method returns an error when the underlying system call fails.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the given `length` exceeds `isize::MAX` bytes.
     pub fn map_anon(length: usize) -> Result<MmapMut> {
         MmapOptions::new().len(length).map_anon()
     }
@@ -1172,9 +1166,13 @@ mod test {
 
     #[test]
     #[cfg(target_pointer_width = "32")]
-    #[should_panic(expected = "memory map length overflows isize")]
     fn map_anon_len_overflow() {
-        let _ = MmapMut::map_anon(0x80000000);
+        let res = MmapMut::map_anon(0x80000000);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "memory map length overflows isize"
+        );
     }
 
     #[test]
