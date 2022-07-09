@@ -454,8 +454,9 @@ impl MmapOptions {
 
     /// Creates an anonymous memory map.
     ///
-    /// Note: the memory map length must be configured to be greater than 0 before creating an
-    /// anonymous memory map using `MmapOptions::len()`.
+    /// The memory map length should be configured using [`MmapOptions::len()`]
+    /// before creating an anonymous memory map, otherwise a zero-length mapping
+    /// will be crated.
     ///
     /// # Errors
     ///
