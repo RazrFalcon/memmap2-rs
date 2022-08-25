@@ -13,11 +13,9 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Install toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        profile: minimal
-        target: x86_64-pc-windows-gnu
+        targets: x86_64-pc-windows-gnu
 
     - name: Run checks
       env:
@@ -83,12 +81,9 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Install toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        profile: minimal
-        target: wasm32-unknown-unknown
-        override: true
+        targets: wasm32-unknown-unknown
 
     - name: Run check
       run: cargo check --all-features --target wasm32-unknown-unknown
@@ -100,11 +95,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Install toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: 1.36.0
-        profile: minimal
-        override: true
+      uses: dtolnay/rust-toolchain@1.36.0
 
     - name: Run tests
       run: cargo test --all-features
