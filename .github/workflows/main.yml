@@ -7,7 +7,7 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -28,7 +28,7 @@ jobs:
         cargo clippy --target x86_64-pc-windows-gnu $CLIPPY_OPTS
 
   test-win:
-    runs-on: windows-2019
+    runs-on: windows-latest
     strategy:
       matrix:
         target:
@@ -46,8 +46,8 @@ jobs:
     - name: Run tests
       run: cargo test --all-features
 
-  test-macos-catalina:
-    runs-on: macos-10.15
+  test-macos:
+    runs-on: macos-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -56,7 +56,7 @@ jobs:
       run: cargo test --all-features
 
   test-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         target:
@@ -77,7 +77,7 @@ jobs:
       run: cargo test --all-features
 
   check-stub:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -94,7 +94,7 @@ jobs:
       run: cargo check --all-features --target wasm32-unknown-unknown
 
   test-msrv:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
