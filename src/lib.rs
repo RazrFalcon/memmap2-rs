@@ -1088,7 +1088,7 @@ mod test {
 
     #[cfg(unix)]
     use crate::advice::Advice;
-    use std::fs::{self, OpenOptions};
+    use std::fs::OpenOptions;
     use std::io::{Read, Write};
     #[cfg(unix)]
     use std::os::unix::io::AsRawFd;
@@ -1622,7 +1622,7 @@ mod test {
     /// Returns true if a non-zero amount of memory is locked.
     #[cfg(target_os = "linux")]
     fn is_locked() -> bool {
-        let status = &fs::read_to_string("/proc/self/status")
+        let status = &std::fs::read_to_string("/proc/self/status")
             .expect("/proc/self/status should be available");
         for line in status.lines() {
             if line.starts_with("VmLck:") {
