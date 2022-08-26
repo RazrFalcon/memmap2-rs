@@ -38,8 +38,10 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
-    - name: Set default target
-      run: rustup default stable-${{ matrix.target }}
+    - name: Install toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable-${{ matrix.target }}
 
     - name: Run tests
       run: cargo test --all-features
@@ -67,8 +69,10 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
-    - name: Set default target
-      run: rustup default stable-${{ matrix.target }}
+    - name: Install toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable-${{ matrix.target }}
 
     - name: Install multilib
       if: ${{ matrix.target == 'i686-unknown-linux-gnu' }}
