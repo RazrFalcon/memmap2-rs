@@ -22,7 +22,7 @@ jobs:
       env:
         CLIPPY_OPTS: --all-targets -- --allow clippy::len_without_is_empty --allow clippy::missing_safety_doc
       run: |
-        cargo fmt -- --check
+        cargo fmt --check
         cargo clippy $CLIPPY_OPTS
         cargo clippy --target x86_64-pc-windows-gnu $CLIPPY_OPTS
 
