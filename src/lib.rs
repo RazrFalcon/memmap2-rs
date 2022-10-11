@@ -1006,6 +1006,12 @@ impl MmapMut {
     ///
     /// If the memory map is file-backed, the file must have been opened with execute permissions.
     ///
+    /// On systems with separate instructions and data caches (a category that includes many ARM
+    /// chips), a platform-specific call may be needed to ensure that the changes are visible to the
+    /// execution unit (e.g. when using this function to implement a JIT compiler).  For more
+    /// details, see [this ARM write-up](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/caches-and-self-modifying-code)
+    /// or the `man` page for [`sys_icache_invalidate`](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/sys_icache_invalidate.3.html).
+    ///
     /// # Errors
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
