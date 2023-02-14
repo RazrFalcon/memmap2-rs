@@ -835,6 +835,18 @@ impl fmt::Debug for MmapRaw {
     }
 }
 
+impl From<Mmap> for MmapRaw {
+    fn from(value: Mmap) -> Self {
+        Self { inner: value.inner }
+    }
+}
+
+impl From<MmapMut> for MmapRaw {
+    fn from(value: MmapMut) -> Self {
+        Self { inner: value.inner }
+    }
+}
+
 /// A handle to a mutable memory mapped buffer.
 ///
 /// A file-backed `MmapMut` buffer may be used to read from or write to a file. An anonymous
