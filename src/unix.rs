@@ -240,9 +240,9 @@ impl MmapInner {
         self.len
     }
 
-    pub fn advise(&self, advice: Advice) -> io::Result<()> {
+    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> io::Result<()> {
         unsafe {
-            if libc::madvise(self.ptr, self.len, advice as i32) != 0 {
+            if libc::madvise(self.ptr.add(offset), len, advice as i32) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())

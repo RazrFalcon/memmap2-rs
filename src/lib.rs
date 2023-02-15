@@ -627,7 +627,15 @@ impl Mmap {
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice)
+        self.inner.advise_range(advice, 0, self.inner.len())
+    }
+
+    /// Advise OS how this range of memory map will be accessed. Only supported on Unix.
+    ///
+    /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    #[cfg(unix)]
+    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
+        self.inner.advise_range(advice, offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -806,7 +814,15 @@ impl MmapRaw {
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice)
+        self.inner.advise_range(advice, 0, self.inner.len())
+    }
+
+    /// Advise OS how this range of memory map will be accessed. Only supported on Unix.
+    ///
+    /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    #[cfg(unix)]
+    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
+        self.inner.advise_range(advice, offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -1062,7 +1078,15 @@ impl MmapMut {
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice)
+        self.inner.advise_range(advice, 0, self.inner.len())
+    }
+
+    /// Advise OS how this range of memory map will be accessed. Only supported on Unix.
+    ///
+    /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+    #[cfg(unix)]
+    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
+        self.inner.advise_range(advice, offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
