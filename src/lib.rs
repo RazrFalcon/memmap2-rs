@@ -631,9 +631,9 @@ impl Mmap {
     }
 
     /// Advise OS how this range of memory map will be accessed.
-    /// 
+    ///
     /// The offset and length must be in the bounds of the memory map.
-    /// 
+    ///
     /// Only supported on Unix.
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
@@ -822,9 +822,9 @@ impl MmapRaw {
     }
 
     /// Advise OS how this range of memory map will be accessed.
-    /// 
+    ///
     /// The offset and length must be in the bounds of the memory map.
-    /// 
+    ///
     /// Only supported on Unix.
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
@@ -1090,9 +1090,9 @@ impl MmapMut {
     }
 
     /// Advise OS how this range of memory map will be accessed.
-    /// 
+    ///
     /// The offset and length must be in the bounds of the memory map.
-    /// 
+    ///
     /// Only supported on Unix.
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
