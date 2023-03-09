@@ -4,7 +4,7 @@
 //! which correspond to mapping a [`File`] to a [`&[u8]`](https://doc.rust-lang.org/std/primitive.slice.html)
 //! or [`&mut [u8]`](https://doc.rust-lang.org/std/primitive.slice.html)
 //! respectively. Both function by dereferencing to a slice, allowing the
-//! [`Mmap`]/[`MmapMut`] to be used in the same way you would the equivelant slice
+//! [`Mmap`]/[`MmapMut`] to be used in the same way you would the equivalent slice
 //! types.
 //!
 //! [`File`]: std::fs::File
