@@ -646,7 +646,7 @@ impl Mmap {
     ///
     /// See [mlock()](https://man7.org/linux/man-pages/man2/mlock.2.html) map page.
     #[cfg(unix)]
-    pub fn lock(&mut self) -> Result<()> {
+    pub fn lock(&self) -> Result<()> {
         self.inner.lock()
     }
 
@@ -654,7 +654,7 @@ impl Mmap {
     ///
     /// See [munlock()](https://man7.org/linux/man-pages/man2/munlock.2.html) map page.
     #[cfg(unix)]
-    pub fn unlock(&mut self) -> Result<()> {
+    pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
     }
 }
@@ -837,7 +837,7 @@ impl MmapRaw {
     ///
     /// See [mlock()](https://man7.org/linux/man-pages/man2/mlock.2.html) map page.
     #[cfg(unix)]
-    pub fn lock(&mut self) -> Result<()> {
+    pub fn lock(&self) -> Result<()> {
         self.inner.lock()
     }
 
@@ -845,7 +845,7 @@ impl MmapRaw {
     ///
     /// See [munlock()](https://man7.org/linux/man-pages/man2/munlock.2.html) map page.
     #[cfg(unix)]
-    pub fn unlock(&mut self) -> Result<()> {
+    pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
     }
 }
@@ -1105,7 +1105,7 @@ impl MmapMut {
     ///
     /// See [mlock()](https://man7.org/linux/man-pages/man2/mlock.2.html) map page.
     #[cfg(unix)]
-    pub fn lock(&mut self) -> Result<()> {
+    pub fn lock(&self) -> Result<()> {
         self.inner.lock()
     }
 
@@ -1113,7 +1113,7 @@ impl MmapMut {
     ///
     /// See [munlock()](https://man7.org/linux/man-pages/man2/munlock.2.html) map page.
     #[cfg(unix)]
-    pub fn unlock(&mut self) -> Result<()> {
+    pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
     }
 }
@@ -1728,7 +1728,7 @@ mod test {
             .unwrap();
         file.set_len(128).unwrap();
 
-        let mut mmap = unsafe { Mmap::map(&file).unwrap() };
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
         #[cfg(target_os = "linux")]
         assert!(!is_locked());
 
