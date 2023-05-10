@@ -497,6 +497,21 @@ impl MmapOptions {
         MmapInner::map_mut(self.get_len(&file)?, desc.0, self.offset, self.populate)
             .map(|inner| MmapRaw { inner })
     }
+
+    /// Creates a read-only raw memory map
+    ///
+    /// This is primarily useful to avoid intermediate `Mmap` instances when
+    /// read-only access to files modified elsewhere are required.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the underlying system call fails
+    pub fn map_raw_read_only<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapRaw> {
+        let desc = file.as_raw_desc();
+
+        MmapInner::map(self.get_len(&file)?, desc.0, self.offset, self.populate)
+            .map(|inner| MmapRaw { inner })
+    }
 }
 
 /// A handle to an immutable memory mapped buffer.
@@ -1166,7 +1181,7 @@ mod test {
 
     #[cfg(unix)]
     use crate::advice::Advice;
-    use std::fs::OpenOptions;
+    use std::fs::{File, OpenOptions};
     use std::io::{Read, Write};
     #[cfg(unix)]
     use std::os::unix::io::AsRawFd;
@@ -1628,6 +1643,22 @@ mod test {
             .expect("open");
         file.write_all(b"abc123").unwrap();
         let mmap = MmapOptions::new().map_raw(&file).unwrap();
+        assert_eq!(mmap.len(), 6);
+        assert!(!mmap.as_ptr().is_null());
+        assert_eq!(unsafe { std::ptr::read(mmap.as_ptr()) }, b'a');
+    }
+
+    #[test]
+    fn raw_read_only() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("mmaprawro");
+
+        File::create(&path).unwrap().write_all(b"abc123").unwrap();
+
+        let mmap = MmapOptions::new()
+            .map_raw_read_only(&File::open(&path).unwrap())
+            .unwrap();
+
         assert_eq!(mmap.len(), 6);
         assert!(!mmap.as_ptr().is_null());
         assert_eq!(unsafe { std::ptr::read(mmap.as_ptr()) }, b'a');
