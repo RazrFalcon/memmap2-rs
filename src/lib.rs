@@ -1183,6 +1183,7 @@ mod test {
     use crate::advice::Advice;
     use std::fs::{File, OpenOptions};
     use std::io::{Read, Write};
+    use std::mem;
     #[cfg(unix)]
     use std::os::unix::io::AsRawFd;
     #[cfg(windows)]
@@ -1272,8 +1273,10 @@ mod test {
             .unwrap();
         let mmap = unsafe { Mmap::map(&file).unwrap() };
         assert!(mmap.is_empty());
+        assert_eq!(mmap.as_ptr().align_offset(mem::size_of::<usize>()), 0);
         let mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
         assert!(mmap.is_empty());
+        assert_eq!(mmap.as_ptr().align_offset(mem::size_of::<usize>()), 0);
     }
 
     #[test]
@@ -1497,7 +1500,7 @@ mod test {
 
         let mmap = mmap.make_exec().expect("make_exec");
 
-        let jitfn: extern "C" fn() -> u8 = unsafe { std::mem::transmute(mmap.as_ptr()) };
+        let jitfn: extern "C" fn() -> u8 = unsafe { mem::transmute(mmap.as_ptr()) };
         assert_eq!(jitfn(), 0xab);
     }
 
