@@ -77,7 +77,9 @@ jobs:
 
     - name: Install multilib
       if: ${{ matrix.target == 'i686-unknown-linux-gnu' }}
-      run: sudo apt install gcc-multilib
+      run: |
+        sudo apt update -yqq
+        sudo apt install gcc-multilib
 
     - name: Run tests
       run: cargo test --all-features
