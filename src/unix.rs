@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
 
 use crate::advice::Advice;
+use crate::RemapOptions;
 
 #[cfg(any(
     all(target_os = "linux", not(target_arch = "mips")),
@@ -249,6 +250,47 @@ impl MmapInner {
             if libc::madvise(self.ptr.offset(offset), len, advice as i32) != 0 {
                 Err(io::Error::last_os_error())
             } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> io::Result<()> {
+        // Either of MREMAP_FIXED or MREMAP_DONTUNMAP would break this function.
+        //
+        // It is not possible to specify them via RemapOptions but this way if
+        // it is modified in the future then the panic should immediately indicate
+        // that something needs to be changed here.
+        assert_eq!(
+            options.flags & !libc::MREMAP_MAYMOVE,
+            0,
+            "RemapOptions contained unsupported flags"
+        );
+
+        // Undo the pointer adjustments done as part of MmapInner::new to recover
+        // the pointer and length passed to mmap.
+        //
+        // See the comments in MmapInner::new for relevant details.
+        let alignment = self.ptr() as usize % page_size();
+        let old_len = self.len() + alignment;
+        let old_len = old_len.max(1);
+
+        let old_ptr = unsafe { self.ptr.offset(-(alignment as isize)) };
+
+        // Adjust the new length to reflect that the start of the memory map is
+        // actually at the start of the nearest page.
+        let aligned_new_len = new_len + alignment;
+        let aligned_new_len = aligned_new_len.max(1);
+
+        unsafe {
+            let new_ptr = libc::mremap(old_ptr, old_len, aligned_new_len, options.flags);
+
+            if new_ptr == libc::MAP_FAILED {
+                Err(io::Error::last_os_error())
+            } else {
+                self.ptr = new_ptr.offset(alignment as isize);
+                self.len = new_len;
                 Ok(())
             }
         }

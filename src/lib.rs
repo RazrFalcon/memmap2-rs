@@ -672,6 +672,22 @@ impl Mmap {
     pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
     }
+
+    /// Adjust the size of the memory mapping.
+    ///
+    /// This will try to resize the memory mapping in place. If
+    /// [`RemapOptions::may_move`] is specified it will move the mapping if it
+    /// could not resize in place, otherwise it will error.
+    ///
+    /// Only supported on Linux.
+    ///
+    /// See the [`mremap(2)`] man page.
+    ///
+    /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
+    #[cfg(target_os = "linux")]
+    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
+        self.inner.remap(new_len, options)
+    }
 }
 
 #[cfg(feature = "stable_deref_trait")]
@@ -862,6 +878,22 @@ impl MmapRaw {
     #[cfg(unix)]
     pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
+    }
+
+    /// Adjust the size of the memory mapping.
+    ///
+    /// This will try to resize the memory mapping in place. If
+    /// [`RemapOptions::may_move`] is specified it will move the mapping if it
+    /// could not resize in place, otherwise it will error.
+    ///
+    /// Only supported on Linux.
+    ///
+    /// See the [`mremap(2)`] man page.
+    ///
+    /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
+    #[cfg(target_os = "linux")]
+    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
+        self.inner.remap(new_len, options)
     }
 }
 
@@ -1131,6 +1163,27 @@ impl MmapMut {
     pub fn unlock(&self) -> Result<()> {
         self.inner.unlock()
     }
+
+    /// Adjust the size of the memory mapping.
+    ///
+    /// This will try to resize the memory mapping in place. If
+    /// [`RemapOptions::may_move`] is specified it will move the mapping if it
+    /// could not resize in place, otherwise it will error.
+    ///
+    /// Only supported on Linux.
+    ///
+    /// See the [`mremap(2)`] man page.
+    ///
+    /// # Safety
+    /// Remapping with a size larger than that of the file that was originally
+    /// mapped will result in `SIGBUS` signals when attempting to access pages
+    /// that are not backed by the file itself.
+    ///
+    /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
+    #[cfg(target_os = "linux")]
+    pub unsafe fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
+        self.inner.remap(new_len, options)
+    }
 }
 
 #[cfg(feature = "stable_deref_trait")]
@@ -1172,6 +1225,38 @@ impl fmt::Debug for MmapMut {
             .field("ptr", &self.as_ptr())
             .field("len", &self.len())
             .finish()
+    }
+}
+
+/// Options for [`Mmap::remap`] and [`MmapMut::remap`].
+#[derive(Copy, Clone, Default)]
+#[cfg(target_os = "linux")]
+pub struct RemapOptions {
+    pub(crate) flags: libc::c_int,
+}
+
+#[cfg(target_os = "linux")]
+impl RemapOptions {
+    /// Creates a mew set of options for resizing a memory map.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Controls whether the memory map can be moved if it is not possible to
+    /// resize it in place.
+    ///
+    /// If false then the memory map is guaranteed to remain at the same
+    /// address when being resized but attempting to resize will return an
+    /// error if the new memory map would overlap with something else in the
+    /// current process' memory.
+    ///
+    /// By default this is false.
+    pub fn may_move(mut self, may_move: bool) -> Self {
+        match may_move {
+            true => self.flags |= libc::MREMAP_MAYMOVE,
+            false => self.flags &= !libc::MREMAP_MAYMOVE,
+        }
+        self
     }
 }
 
@@ -1784,5 +1869,61 @@ mod test {
             .expect("mmap unlock again should not cause problems");
         #[cfg(target_os = "linux")]
         assert!(!is_locked());
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn remap_grow() {
+        use crate::RemapOptions;
+
+        let initial_len = 128;
+        let final_len = 2000;
+
+        let zeros = vec![0u8; final_len];
+        let incr: Vec<u8> = (0..final_len).map(|v| v as u8).collect();
+
+        let file = tempfile::tempfile().unwrap();
+        file.set_len(final_len as u64).unwrap();
+
+        let mut mmap = unsafe { MmapOptions::new().len(initial_len).map_mut(&file).unwrap() };
+        assert_eq!(mmap.len(), initial_len);
+        assert_eq!(&mmap[..], &zeros[..initial_len]);
+
+        unsafe {
+            mmap.remap(final_len, RemapOptions::new().may_move(true))
+                .unwrap()
+        };
+
+        // The size should have been updated
+        assert_eq!(mmap.len(), final_len);
+
+        // Should still be all zeros
+        assert_eq!(&mmap[..], &zeros);
+
+        // Write out to the whole expanded slice.
+        mmap.copy_from_slice(&incr);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn remap_shrink() {
+        use crate::RemapOptions;
+
+        let initial_len = 20000;
+        let final_len = 400;
+
+        let incr: Vec<u8> = (0..final_len).map(|v| v as u8).collect();
+
+        let file = tempfile::tempfile().unwrap();
+        file.set_len(initial_len as u64).unwrap();
+
+        let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
+        assert_eq!(mmap.len(), initial_len);
+
+        unsafe { mmap.remap(final_len, RemapOptions::new()).unwrap() };
+        assert_eq!(mmap.len(), final_len);
+
+        // Check that the mmap is still writable along the slice length
+        mmap.copy_from_slice(&incr);
     }
 }
