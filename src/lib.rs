@@ -1936,4 +1936,23 @@ mod test {
         // Check that the mmap is still writable along the slice length
         mmap.copy_from_slice(&incr);
     }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[cfg(target_pointer_width = "32")]
+    fn remap_len_overflow() {
+        use crate::RemapOptions;
+
+        let file = tempfile::tempfile().unwrap();
+        file.set_len(1024).unwrap();
+        let mut mmap = unsafe { MmapOptions::new().len(1024).map(&file).unwrap() };
+
+        let res = unsafe { mmap.remap(0x80000000) };
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "memory map length overflows isize"
+        );
+
+        assert_eq!(mmap.len(), 1024);
+    }
 }
