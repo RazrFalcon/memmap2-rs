@@ -264,7 +264,7 @@ impl MmapInner {
         // It is not possible to specify them via RemapOptions but this way if
         // it is modified in the future then the panic should immediately indicate
         // that something needs to be changed here.
-        assert_eq!(
+        debug_assert_eq!(
             options.flags & !libc::MREMAP_MAYMOVE,
             0,
             "RemapOptions contained unsupported flags"
