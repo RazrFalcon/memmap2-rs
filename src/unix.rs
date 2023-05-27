@@ -257,6 +257,8 @@ impl MmapInner {
 
     #[cfg(target_os = "linux")]
     pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> io::Result<()> {
+        use std::isize;
+
         // Either of MREMAP_FIXED or MREMAP_DONTUNMAP would break this function.
         //
         // It is not possible to specify them via RemapOptions but this way if
