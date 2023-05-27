@@ -1947,7 +1947,7 @@ mod test {
         file.set_len(1024).unwrap();
         let mut mmap = unsafe { MmapOptions::new().len(1024).map(&file).unwrap() };
 
-        let res = unsafe { mmap.remap(0x80000000) };
+        let res = unsafe { mmap.remap(0x80000000, RemapOptions::new().may_move(true)) };
         assert_eq!(
             res.unwrap_err().to_string(),
             "memory map length overflows isize"
