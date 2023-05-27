@@ -683,9 +683,14 @@ impl Mmap {
     ///
     /// See the [`mremap(2)`] man page.
     ///
+    /// # Safety
+    /// Resizing the memory mapping beyond the end of the mapped file will
+    /// result in UB should you happen to access memory beyond the end of the
+    /// file.
+    ///
     /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
     #[cfg(target_os = "linux")]
-    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
+    pub unsafe fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
         self.inner.remap(new_len, options)
     }
 }
@@ -890,9 +895,14 @@ impl MmapRaw {
     ///
     /// See the [`mremap(2)`] man page.
     ///
+    /// # Safety
+    /// Resizing the memory mapping beyond the end of the mapped file will
+    /// result in UB should you happen to access memory beyond the end of the
+    /// file.
+    ///
     /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
     #[cfg(target_os = "linux")]
-    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
+    pub unsafe fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
         self.inner.remap(new_len, options)
     }
 }
@@ -1175,9 +1185,9 @@ impl MmapMut {
     /// See the [`mremap(2)`] man page.
     ///
     /// # Safety
-    /// Remapping with a size larger than that of the file that was originally
-    /// mapped will result in `SIGBUS` signals when attempting to access pages
-    /// that are not backed by the file itself.
+    /// Resizing the memory mapping beyond the end of the mapped file will
+    /// result in UB should you happen to access memory beyond the end of the
+    /// file.
     ///
     /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
     #[cfg(target_os = "linux")]
@@ -1229,7 +1239,7 @@ impl fmt::Debug for MmapMut {
 }
 
 /// Options for [`Mmap::remap`] and [`MmapMut::remap`].
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 #[cfg(target_os = "linux")]
 pub struct RemapOptions {
     pub(crate) flags: libc::c_int,
