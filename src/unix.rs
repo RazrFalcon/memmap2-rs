@@ -258,17 +258,6 @@ impl MmapInner {
     pub fn remap(&mut self, new_len: usize, options: crate::RemapOptions) -> io::Result<()> {
         use std::isize;
 
-        // Either of MREMAP_FIXED or MREMAP_DONTUNMAP would break this function.
-        //
-        // It is not possible to specify them via RemapOptions but this way if
-        // it is modified in the future then the panic should immediately indicate
-        // that something needs to be changed here.
-        debug_assert_eq!(
-            options.flags & !libc::MREMAP_MAYMOVE,
-            0,
-            "RemapOptions contained unsupported flags"
-        );
-
         // Rust's slice cannot be larger than isize::MAX.
         // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
         //
@@ -301,7 +290,7 @@ impl MmapInner {
         let aligned_new_len = aligned_new_len.max(1);
 
         unsafe {
-            let new_ptr = libc::mremap(old_ptr, old_len, aligned_new_len, options.flags);
+            let new_ptr = libc::mremap(old_ptr, old_len, aligned_new_len, options.into_flags());
 
             if new_ptr == libc::MAP_FAILED {
                 Err(io::Error::last_os_error())

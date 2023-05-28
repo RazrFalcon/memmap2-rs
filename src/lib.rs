@@ -1242,7 +1242,7 @@ impl fmt::Debug for MmapMut {
 #[derive(Copy, Clone, Default, Debug)]
 #[cfg(target_os = "linux")]
 pub struct RemapOptions {
-    pub(crate) flags: libc::c_int,
+    may_move: bool,
 }
 
 #[cfg(target_os = "linux")]
@@ -1262,11 +1262,15 @@ impl RemapOptions {
     ///
     /// By default this is false.
     pub fn may_move(mut self, may_move: bool) -> Self {
-        match may_move {
-            true => self.flags |= libc::MREMAP_MAYMOVE,
-            false => self.flags &= !libc::MREMAP_MAYMOVE,
-        }
+        self.may_move = may_move;
         self
+    }
+
+    pub(crate) fn into_flags(self) -> libc::c_int {
+        match self.may_move {
+            true => libc::MREMAP_MAYMOVE,
+            _ => 0,
+        }
     }
 }
 
