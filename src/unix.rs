@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
 
 use crate::advice::Advice;
-use crate::RemapOptions;
 
 #[cfg(any(
     all(target_os = "linux", not(target_arch = "mips")),
@@ -256,7 +255,7 @@ impl MmapInner {
     }
 
     #[cfg(target_os = "linux")]
-    pub fn remap(&mut self, new_len: usize, options: RemapOptions) -> io::Result<()> {
+    pub fn remap(&mut self, new_len: usize, options: crate::RemapOptions) -> io::Result<()> {
         use std::isize;
 
         // Either of MREMAP_FIXED or MREMAP_DONTUNMAP would break this function.
