@@ -47,7 +47,7 @@ impl MmapInner {
         let alignment = offset % page_size() as u64;
         let aligned_offset = offset - alignment;
 
-        let (map_len, map_offset) = Self::adjust_mmap_params(len as usize, alignment as usize)?;
+        let (map_len, map_offset) = Self::adjust_mmap_params(len as usize, alignment as usize);
 
         unsafe {
             let ptr = libc::mmap(
@@ -67,25 +67,7 @@ impl MmapInner {
         }
     }
 
-    fn adjust_mmap_params(len: usize, alignment: usize) -> io::Result<(usize, usize)> {
-        use std::isize;
-
-        // Rust's slice cannot be larger than isize::MAX.
-        // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
-        //
-        // This is not a problem on 64-bit targets, but on 32-bit one
-        // having a file or an anonymous mapping larger than 2GB is quite normal
-        // and we have to prevent it.
-        //
-        // The code below is essentially the same as in Rust's std:
-        // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
-        if std::mem::size_of::<usize>() < 8 && len > isize::MAX as usize {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "memory map length overflows isize",
-            ));
-        }
-
+    fn adjust_mmap_params(len: usize, alignment: usize) -> (usize, usize) {
         let map_len = len + alignment;
         let map_offset = alignment;
 
@@ -120,7 +102,7 @@ impl MmapInner {
         //
         // (SIGBUS is still possible by mapping a non-empty file and then truncating it
         // to a shorter size, but that is unrelated to this handling of empty files.)
-        Ok((map_len, map_offset))
+        (map_len, map_offset)
     }
 
     /// Get the current memory mapping as a `(ptr, map_len, offset)` tuple.
@@ -353,7 +335,7 @@ impl MmapInner {
         use std::mem;
 
         let (old_ptr, old_len, offset) = self.as_mmap_params();
-        let (map_len, offset) = Self::adjust_mmap_params(new_len, offset)?;
+        let (map_len, offset) = Self::adjust_mmap_params(new_len, offset);
 
         unsafe {
             let new_ptr = libc::mremap(old_ptr, old_len, map_len, options.into_flags());
