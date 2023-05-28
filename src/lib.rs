@@ -684,6 +684,7 @@ impl Mmap {
     /// See the [`mremap(2)`] man page.
     ///
     /// # Safety
+    ///
     /// Resizing the memory mapping beyond the end of the mapped file will
     /// result in UB should you happen to access memory beyond the end of the
     /// file.
@@ -896,6 +897,7 @@ impl MmapRaw {
     /// See the [`mremap(2)`] man page.
     ///
     /// # Safety
+    ///
     /// Resizing the memory mapping beyond the end of the mapped file will
     /// result in UB should you happen to access memory beyond the end of the
     /// file.
@@ -1185,6 +1187,7 @@ impl MmapMut {
     /// See the [`mremap(2)`] man page.
     ///
     /// # Safety
+    ///
     /// Resizing the memory mapping beyond the end of the mapped file will
     /// result in UB should you happen to access memory beyond the end of the
     /// file.
