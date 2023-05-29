@@ -1272,9 +1272,10 @@ impl RemapOptions {
     }
 
     pub(crate) fn into_flags(self) -> libc::c_int {
-        match self.may_move {
-            true => libc::MREMAP_MAYMOVE,
-            _ => 0,
+        if self.may_move {
+            libc::MREMAP_MAYMOVE
+        } else {
+            0
         }
     }
 }
