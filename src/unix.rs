@@ -46,30 +46,7 @@ impl MmapInner {
     ) -> io::Result<MmapInner> {
         let alignment = offset % page_size() as u64;
         let aligned_offset = offset - alignment;
-
-        let (map_len, map_offset) = Self::adjust_mmap_params(len as usize, alignment as usize);
-
-        unsafe {
-            let ptr = libc::mmap(
-                ptr::null_mut(),
-                map_len as libc::size_t,
-                prot,
-                flags,
-                file,
-                aligned_offset as libc::off_t,
-            );
-
-            if ptr == libc::MAP_FAILED {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(Self::from_raw_parts(ptr, len, map_offset))
-            }
-        }
-    }
-
-    fn adjust_mmap_params(len: usize, alignment: usize) -> (usize, usize) {
-        let map_len = len + alignment;
-        let map_offset = alignment;
+        let aligned_len = len + alignment as usize;
 
         // `libc::mmap` does not support zero-size mappings. POSIX defines:
         //
@@ -77,7 +54,7 @@ impl MmapInner {
         // > If `len` is zero, `mmap()` shall fail and no mapping shall be established.
         //
         // So if we would create such a mapping, crate a one-byte mapping instead:
-        let map_len = map_len.max(1);
+        let aligned_len = aligned_len.max(1);
 
         // Note that in that case `MmapInner::len` is still set to zero,
         // and `Mmap` will still dereferences to an empty slice.
@@ -102,78 +79,25 @@ impl MmapInner {
         //
         // (SIGBUS is still possible by mapping a non-empty file and then truncating it
         // to a shorter size, but that is unrelated to this handling of empty files.)
-        (map_len, map_offset)
-    }
 
-    /// Get the current memory mapping as a `(ptr, map_len, offset)` tuple.
-    ///
-    /// Note that `map_len` is the length of the memory mapping itself and
-    /// _not_ the one that would be passed to `from_raw_parts`.
-    fn as_mmap_params(&self) -> (*mut libc::c_void, usize, usize) {
-        let offset = self.ptr as usize % page_size();
-        let len = self.len + offset;
+        unsafe {
+            let ptr = libc::mmap(
+                ptr::null_mut(),
+                aligned_len as libc::size_t,
+                prot,
+                flags,
+                file,
+                aligned_offset as libc::off_t,
+            );
 
-        // There are two possible memory layouts we could have, depending on
-        // the length and offset passed when constructing this instance:
-        //
-        // 1. The "normal" memory layout looks like this:
-        //
-        //         |<------------------>|<---------------------->|
-        //     mmap ptr    offset      ptr     public slice
-        //
-        //    That is, we have
-        //    - The start of the page-aligned memory mapping returned by mmap,
-        //      followed by,
-        //    - Some number of bytes that are memory mapped but ignored since
-        //      they are before the byte offset requested by the user, followed
-        //      by,
-        //    - The actual memory mapped slice requested by the user.
-        //
-        //    This maps cleanly to a (ptr, len, offset) tuple.
-        //
-        // 2. Then, we have the case where the user requested a zero-length
-        //    memory mapping. mmap(2) does not support zero-length mappings so
-        //    this crate works around that by actually making a mapping of
-        //    length one. This means that we have
-        //    - A length zero slice, followed by,
-        //    - A single memory mapped byte
-        //
-        //    Note that this only happens if the offset within the page is also
-        //    zero. Otherwise, we have a memory map of offset bytes and not a
-        //    zero-length memory map.
-        //
-        //    This doesn't fit cleanly into a (ptr, len, offset) tuple. Instead,
-        //    we fudge it slightly: a zero-length memory map turns into a
-        //    mapping of length one and can't be told apart outside of this
-        //    method without knowing the original length.
-        match len {
-            0 => (self.ptr, 1, 0),
-            _ => (self.ptr, len, offset),
-        }
-    }
-
-    /// Construct this `MmapInner` from its raw components
-    ///
-    /// # Parameters
-    ///
-    /// - `ptr` - a pointer to the start of the memory mapping.
-    /// - `len` - the length of the mapped slice as requested by the user.
-    /// - `offset` - the starting offset of this memory map within the page.
-    ///
-    /// # Safety
-    ///
-    /// - `ptr` must point to the start of memory mapping that can be freed
-    ///   using `munmap(2)` (i.e. returned by `mmap(2)` or `mremap(2)`)
-    /// - The memory mapping at `ptr` must have a length of `len + offset`.
-    /// - If `len + offset == 0` then the memory mapping must be of length 1.
-    /// - `offset` must be less than the current page size.
-    unsafe fn from_raw_parts(ptr: *mut libc::c_void, len: usize, offset: usize) -> Self {
-        debug_assert_eq!(ptr as usize % page_size(), 0, "ptr not page-aligned");
-        debug_assert!(offset < page_size(), "offset larger than page size");
-
-        Self {
-            ptr: ptr.offset(offset as isize),
-            len,
+            if ptr == libc::MAP_FAILED {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(MmapInner {
+                    ptr: ptr.offset(alignment as isize),
+                    len,
+                })
+            }
         }
     }
 
@@ -332,21 +256,47 @@ impl MmapInner {
 
     #[cfg(target_os = "linux")]
     pub fn remap(&mut self, new_len: usize, options: crate::RemapOptions) -> io::Result<()> {
-        use std::mem;
+        use std::isize;
 
-        let (old_ptr, old_len, offset) = self.as_mmap_params();
-        let (map_len, offset) = Self::adjust_mmap_params(new_len, offset);
+        // Rust's slice cannot be larger than isize::MAX.
+        // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
+        //
+        // This is not a problem on 64-bit targets, but on 32-bit one
+        // having a file or an anonymous mapping larger than 2GB is quite normal
+        // and we have to prevent it.
+        //
+        // The code below is essentially the same as in Rust's std:
+        // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
+        if std::mem::size_of::<usize>() < 8 && new_len > isize::MAX as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "memory map length overflows isize",
+            ));
+        }
+
+        // Undo the pointer adjustments done as part of MmapInner::new to recover
+        // the pointer and length passed to mmap.
+        //
+        // See the comments in MmapInner::new for relevant details.
+        let alignment = self.ptr() as usize % page_size();
+        let old_len = self.len() + alignment;
+        let old_len = old_len.max(1);
+
+        let old_ptr = unsafe { self.ptr.offset(-(alignment as isize)) };
+
+        // Adjust the new length to reflect that the start of the memory map is
+        // actually at the start of the nearest page.
+        let aligned_new_len = new_len + alignment;
+        let aligned_new_len = aligned_new_len.max(1);
 
         unsafe {
-            let new_ptr = libc::mremap(old_ptr, old_len, map_len, options.into_flags());
+            let new_ptr = libc::mremap(old_ptr, old_len, aligned_new_len, options.into_flags());
 
             if new_ptr == libc::MAP_FAILED {
                 Err(io::Error::last_os_error())
             } else {
-                mem::forget(mem::replace(
-                    self,
-                    Self::from_raw_parts(new_ptr, new_len, offset),
-                ));
+                self.ptr = new_ptr.offset(alignment as isize);
+                self.len = new_len;
                 Ok(())
             }
         }
@@ -375,12 +325,16 @@ impl MmapInner {
 
 impl Drop for MmapInner {
     fn drop(&mut self) {
-        let (ptr, len, _) = self.as_mmap_params();
-
+        let alignment = self.ptr as usize % page_size();
+        let len = self.len + alignment;
+        let len = len.max(1);
         // Any errors during unmapping/closing are ignored as the only way
         // to report them would be through panicking which is highly discouraged
         // in Drop impls, c.f. https://github.com/rust-lang/lang-team/issues/97
-        unsafe { libc::munmap(ptr, len as libc::size_t) };
+        unsafe {
+            let ptr = self.ptr.offset(-(alignment as isize));
+            libc::munmap(ptr, len as libc::size_t);
+        }
     }
 }
 
