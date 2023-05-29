@@ -692,7 +692,6 @@ impl Mmap {
     /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
     #[cfg(target_os = "linux")]
     pub unsafe fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
-        check_map_length(new_len)?;
         self.inner.remap(new_len, options)
     }
 }
@@ -1196,7 +1195,6 @@ impl MmapMut {
     /// [`mremap(2)`]: https://man7.org/linux/man-pages/man2/mremap.2.html
     #[cfg(target_os = "linux")]
     pub unsafe fn remap(&mut self, new_len: usize, options: RemapOptions) -> Result<()> {
-        check_map_length(new_len)?;
         self.inner.remap(new_len, options)
     }
 }
@@ -1278,26 +1276,6 @@ impl RemapOptions {
             0
         }
     }
-}
-
-fn check_map_length(len: usize) -> Result<()> {
-    // Rust's slice cannot be larger than isize::MAX.
-    // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
-    //
-    // This is not a problem on 64-bit targets, but on 32-bit one
-    // having a file or an anonymous mapping larger than 2GB is quite normal
-    // and we have to prevent it.
-    //
-    // The code below is essentially the same as in Rust's std:
-    // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
-    if std::mem::size_of::<usize>() < 8 && len > isize::MAX as usize {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "memory map length overflows isize",
-        ));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
