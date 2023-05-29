@@ -1264,7 +1264,7 @@ impl RemapOptions {
     /// current process' memory.
     ///
     /// By default this is false.
-    /// 
+    ///
     /// # `may_move` and `StableDeref`
     /// If the `stable_deref_trait` feature is enabled then [`Mmap`] and
     /// [`MmapMut`] implement `StableDeref`. `StableDeref` promises that the
