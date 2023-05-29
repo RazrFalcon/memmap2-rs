@@ -1264,6 +1264,14 @@ impl RemapOptions {
     /// current process' memory.
     ///
     /// By default this is false.
+    /// 
+    /// # `may_move` and `StableDeref`
+    /// If the `stable_deref_trait` feature is enabled then [`Mmap`] and
+    /// [`MmapMut`] implement `StableDeref`. `StableDeref` promises that the
+    /// memory map dereferences to a fixed address, however, calling `remap`
+    /// with `may_move` set may result in the backing memory of the mapping
+    /// being moved to a new address. This may cause UB in other code
+    /// depending on the `StableDeref` guarantees.
     pub fn may_move(mut self, may_move: bool) -> Self {
         self.may_move = may_move;
         self
