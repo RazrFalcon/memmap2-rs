@@ -172,12 +172,6 @@ impl MmapInner {
 
     /// Construct this `MmapInner` from its raw components
     ///
-    /// # Parameters
-    ///
-    /// - `ptr` - a pointer to the start of the memory mapping.
-    /// - `len` - the length of the mapped slice as requested by the user.
-    /// - `offset` - the starting offset of this memory map within the page.
-    ///
     /// # Safety
     ///
     /// - `ptr` must point to the start of memory mapping that can be freed
