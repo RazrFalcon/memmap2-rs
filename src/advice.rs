@@ -241,6 +241,73 @@ pub enum Advice {
     #[cfg(target_os = "linux")]
     HwPoison = libc::MADV_HWPOISON,
 
+    /// **MADV_POPULATE_READ** - Linux only (since Linux 5.14)
+    ///
+    /// Populate  (prefault)  page  tables readable, faulting in all
+    /// pages in the range just as  if  manually  reading  from  each
+    /// page; however, avoid the actual memory access that would have
+    /// been performed after handling the fault.
+    ///
+    /// In contrast to MAP_POPULATE, MADV_POPULATE_READ does not hide
+    /// errors,  can  be  applied to (parts of) existing mappings and
+    /// will always populate (prefault) page  tables  readable.   One
+    /// example  use  case is prefaulting a file mapping, reading all
+    /// file content from disk; however, pages won't be  dirtied  and
+    /// consequently  won't  have  to  be  written  back to disk when
+    /// evicting the pages from memory.
+    ///
+    /// Depending on the underlying mapping, map the shared zeropage,
+    /// preallocate  memory  or  read the underlying file; files with
+    /// holes might or might not preallocate blocks.   If  populating
+    /// fails, a SIGBUS signal is not generated; instead, an error is
+    /// returned.
+    ///
+    /// If MADV_POPULATE_READ succeeds, all  page  tables  have  been
+    /// populated  (prefaulted) readable once.  If MADV_POPULATE_READ
+    /// fails, some page tables might have been populated.
+    ///
+    /// MADV_POPULATE_READ cannot be applied to mappings without read
+    /// permissions  and  special  mappings,  for  example,  mappings
+    /// marked with kernel-internal flags such as VM_PFNMAP or VM_IO,
+    /// or secret memory regions created using memfd_secret(2).
+    ///
+    /// Note  that with MADV_POPULATE_READ, the process can be killed
+    /// at any moment when the system runs out of memory.
+    #[cfg(target_os = "linux")]
+    PopulateRead = libc::MADV_POPULATE_READ,
+
+    /// **MADV_POPULATE_WRITE** - Linux only (since Linux 5.14)
+    ///
+    /// Populate (prefault) page tables  writable,  faulting  in  all
+    /// pages  in  the range just as if manually writing to each each
+    /// page; however, avoid the actual memory access that would have
+    /// been performed after handling the fault.
+    ///
+    /// In  contrast  to  MAP_POPULATE,  MADV_POPULATE_WRITE does not
+    /// hide errors, can be applied to (parts of)  existing  mappings
+    /// and  will  always  populate  (prefault) page tables writable.
+    /// One example use case is preallocating  memory,  breaking  any
+    /// CoW (Copy on Write).
+    ///
+    /// Depending  on  the  underlying mapping, preallocate memory or
+    /// read the underlying file; files with holes  will  preallocate
+    /// blocks.   If  populating fails, a SIGBUS signal is not gener‐
+    /// ated; instead, an error is returned.
+    ///
+    /// If MADV_POPULATE_WRITE succeeds, all page  tables  have  been
+    /// populated (prefaulted) writable once.  If MADV_POPULATE_WRITE
+    /// fails, some page tables might have been populated.
+    ///
+    /// MADV_POPULATE_WRITE cannot be  applied  to  mappings  without
+    /// write permissions and special mappings, for example, mappings
+    /// marked with kernel-internal flags such as VM_PFNMAP or VM_IO,
+    /// or secret memory regions created using memfd_secret(2).
+    ///
+    /// Note that with MADV_POPULATE_WRITE, the process can be killed
+    /// at any moment when the system runs out of memory.
+    #[cfg(target_os = "linux")]
+    PopulateWrite = libc::MADV_POPULATE_WRITE,
+
     /// **MADV_ZERO_WIRED_PAGES** - Darwin only
     ///
     /// Indicates that the application would like the wired pages in this address range to be
