@@ -164,9 +164,10 @@ impl MmapInner {
         //    we fudge it slightly: a zero-length memory map turns into a
         //    mapping of length one and can't be told apart outside of this
         //    method without knowing the original length.
-        match len {
-            0 => (self.ptr, 1, 0),
-            _ => (self.ptr, len, offset),
+        if len == 0 {
+            (self.ptr, 1, 0)
+        } else {
+            (unsafe { self.ptr.offset(-(offset as isize)) }, len, offset)
         }
     }
 
