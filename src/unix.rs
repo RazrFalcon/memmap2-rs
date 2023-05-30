@@ -345,8 +345,6 @@ impl MmapInner {
 
     #[cfg(target_os = "linux")]
     pub fn remap(&mut self, new_len: usize, options: crate::RemapOptions) -> io::Result<()> {
-        use std::mem;
-
         let (old_ptr, old_len, offset) = self.as_mmap_params();
         let (map_len, offset) = Self::adjust_mmap_params(new_len, offset)?;
 
@@ -356,10 +354,8 @@ impl MmapInner {
             if new_ptr == libc::MAP_FAILED {
                 Err(io::Error::last_os_error())
             } else {
-                mem::forget(mem::replace(
-                    self,
-                    Self::from_raw_parts(new_ptr, new_len, offset),
-                ));
+                // We explicitly don't drop self since the pointer within is no longer valid.
+                ptr::write(self, Self::from_raw_parts(new_ptr, new_len, offset));
                 Ok(())
             }
         }
