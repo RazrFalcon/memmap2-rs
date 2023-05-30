@@ -1971,4 +1971,44 @@ mod test {
 
         assert_eq!(mmap.len(), 1024);
     }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn remap_with_offset() {
+        use crate::RemapOptions;
+
+        let offset = 77;
+        let initial_len = 128;
+        let final_len = 2000;
+
+        let zeros = vec![0u8; final_len];
+        let incr: Vec<u8> = (0..final_len).map(|v| v as u8).collect();
+
+        let file = tempfile::tempfile().unwrap();
+        file.set_len(final_len as u64 + offset).unwrap();
+
+        let mut mmap = unsafe {
+            MmapOptions::new()
+                .len(initial_len)
+                .offset(offset)
+                .map_mut(&file)
+                .unwrap()
+        };
+        assert_eq!(mmap.len(), initial_len);
+        assert_eq!(&mmap[..], &zeros[..initial_len]);
+
+        unsafe {
+            mmap.remap(final_len, RemapOptions::new().may_move(true))
+                .unwrap()
+        };
+
+        // The size should have been updated
+        assert_eq!(mmap.len(), final_len);
+
+        // Should still be all zeros
+        assert_eq!(&mmap[..], &zeros);
+
+        // Write out to the whole expanded slice.
+        mmap.copy_from_slice(&incr);
+    }
 }
