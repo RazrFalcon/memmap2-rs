@@ -36,6 +36,8 @@
 //! you can use [`MmapOptions`] in order to further configure a mapping
 //! before you create it.
 
+#![allow(clippy::len_without_is_empty, clippy::missing_safety_doc)]
+
 #[cfg_attr(unix, path = "unix.rs")]
 #[cfg_attr(windows, path = "windows.rs")]
 #[cfg_attr(not(any(unix, windows)), path = "stub.rs")]
@@ -771,7 +773,6 @@ impl MmapRaw {
     ///
     /// Note that truncating the file can cause the length to change (and render this value unusable).
     #[inline]
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }

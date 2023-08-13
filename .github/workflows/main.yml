@@ -20,7 +20,7 @@ jobs:
 
     - name: Run checks
       env:
-        CLIPPY_OPTS: --all-targets -- --allow clippy::len_without_is_empty --allow clippy::missing_safety_doc
+        CLIPPY_OPTS: --all-targets
       run: |
         cargo fmt --check
         cargo clippy $CLIPPY_OPTS
