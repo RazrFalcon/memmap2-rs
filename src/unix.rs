@@ -48,7 +48,7 @@ pub struct MmapInner {
 impl MmapInner {
     /// Creates a new `MmapInner`.
     ///
-    /// This is a thin wrapper around the `mmap` sytem call.
+    /// This is a thin wrapper around the `mmap` system call.
     fn new(
         len: usize,
         prot: libc::c_int,
@@ -59,7 +59,7 @@ impl MmapInner {
         let alignment = offset % page_size() as u64;
         let aligned_offset = offset - alignment;
 
-        let (map_len, map_offset) = Self::adjust_mmap_params(len as usize, alignment as usize)?;
+        let (map_len, map_offset) = Self::adjust_mmap_params(len, alignment as usize)?;
 
         unsafe {
             let ptr = mmap(
@@ -197,7 +197,7 @@ impl MmapInner {
         debug_assert!(offset < page_size(), "offset larger than page size");
 
         Self {
-            ptr: ptr.offset(offset as isize),
+            ptr: ptr.add(offset),
             len,
         }
     }

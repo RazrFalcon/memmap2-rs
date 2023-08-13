@@ -771,6 +771,7 @@ impl MmapRaw {
     ///
     /// Note that truncating the file can cause the length to change (and render this value unusable).
     #[inline]
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -1549,7 +1550,7 @@ mod test {
             .open(&path)
             .unwrap();
 
-        let offset = u32::max_value() as u64 + 2;
+        let offset = u32::MAX as u64 + 2;
         let len = 5432;
         file.set_len(offset + len as u64).unwrap();
 
