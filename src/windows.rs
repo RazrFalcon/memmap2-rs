@@ -180,7 +180,14 @@ impl MmapInner {
         }
 
         unsafe {
-            let mapping = CreateFileMappingW(handle, ptr::null_mut(), protect, 0, 0, ptr::null());
+            let mapping = CreateFileMappingW(
+                handle,
+                ptr::null_mut(),
+                protect,
+                (aligned_len >> 16 >> 16) as DWORD,
+                (aligned_len & 0xffffffff) as DWORD,
+                ptr::null(),
+            );
             if mapping.is_null() {
                 return Err(io::Error::last_os_error());
             }

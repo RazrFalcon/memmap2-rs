@@ -1583,6 +1583,35 @@ mod test {
     }
 
     #[test]
+    fn map_len() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("mmap");
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .unwrap();
+
+        let len = 5432;
+
+        // Check explicit length mmap with an empty file.
+        let mmap = unsafe {
+            MmapOptions::new()
+                .len(len)
+                .map_mut(&file)
+                .unwrap()
+        };
+
+        file.set_len(len as u64).unwrap();
+
+        let zeros = vec![0; len];
+        // check that the mmap is readable and empty
+        assert_eq!(&zeros[..], &mmap[..]);
+    }
+
+    #[test]
     fn index() {
         let mut mmap = MmapMut::map_anon(128).unwrap();
         mmap[0] = 42;
