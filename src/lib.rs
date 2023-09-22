@@ -531,7 +531,7 @@ impl MmapOptions {
 /// Dereferencing and accessing the bytes of the buffer may result in page faults (e.g. swapping
 /// the mapped pages into physical memory) though the details of this are platform specific.
 ///
-/// `Mmap` is [`Sync`](std::marker::Sync) and [`Send`](std::marker::Send).
+/// `Mmap` is [`Sync`] and [`Send`].
 ///
 /// ## Safety
 ///
@@ -948,7 +948,7 @@ impl From<MmapMut> for MmapRaw {
 /// Dereferencing and accessing the bytes of the buffer may result in page faults (e.g. swapping
 /// the mapped pages into physical memory) though the details of this are platform specific.
 ///
-/// `Mmap` is [`Sync`](std::marker::Sync) and [`Send`](std::marker::Send).
+/// `Mmap` is [`Sync`] and [`Send`].
 ///
 /// See [`Mmap`] for the immutable version.
 ///
@@ -1317,7 +1317,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
 
         file.set_len(expected_len as u64).unwrap();
@@ -1350,7 +1350,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
 
         file.set_len(expected_len as u64).unwrap();
@@ -1382,7 +1382,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         let mmap = unsafe { Mmap::map(&file).unwrap() };
         assert!(mmap.is_empty());
@@ -1437,7 +1437,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         file.set_len(128).unwrap();
 
@@ -1461,7 +1461,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         file.set_len(128).unwrap();
         let write = b"abc123";
@@ -1487,7 +1487,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         file.set_len(128).unwrap();
 
@@ -1523,7 +1523,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         file.set_len(128).unwrap();
 
@@ -1548,7 +1548,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
 
         let offset = u32::MAX as u64 + 2;
@@ -1635,7 +1635,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&tempdir.path().join("jit_x86"))
+            .open(tempdir.path().join("jit_x86"))
             .expect("open");
 
         file.set_len(4096).expect("set_len");
@@ -1655,7 +1655,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .expect("open");
         file.set_len(256_u64).expect("set_len");
 
@@ -1701,7 +1701,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .expect("open");
         file.set_len(256_u64).expect("set_len");
 
@@ -1755,7 +1755,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .expect("open");
         file.write_all(b"abc123").unwrap();
         let mmap = MmapOptions::new().map_raw(&file).unwrap();
@@ -1809,14 +1809,14 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
 
         file.set_len(expected_len as u64).unwrap();
 
         // Test MmapMut::advise
         let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
-        mmap.advise(Advice::Random)
+        mmap.advise(Advice::random())
             .expect("mmap advising should be supported on unix");
 
         let len = mmap.len();
@@ -1828,7 +1828,7 @@ mod test {
         // check that the mmap is empty
         assert_eq!(&zeros[..], &mmap[..]);
 
-        mmap.advise_range(Advice::Sequential, 0, mmap.len())
+        mmap.advise_range(Advice::sequential(), 0, mmap.len())
             .expect("mmap advising should be supported on unix");
 
         // write values into the mmap
@@ -1840,11 +1840,26 @@ mod test {
         // Set advice and Read from the read-only map
         let mmap = unsafe { Mmap::map(&file).unwrap() };
 
-        mmap.advise(Advice::Random)
+        mmap.advise(Advice::random())
             .expect("mmap advising should be supported on unix");
 
         // read values back
         assert_eq!(&incr[..], &mmap[..]);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn advise_writes_unsafely() {
+        let mut mmap = MmapMut::map_anon(4096).unwrap();
+        mmap.as_mut().fill(255);
+        let mmap = mmap.make_read_only().unwrap();
+
+        let a = mmap.as_ref()[0];
+        mmap.advise(unsafe { Advice::dont_need() }).unwrap();
+        let b = mmap.as_ref()[0];
+
+        assert_eq!(a, 255);
+        assert_eq!(b, 0);
     }
 
     /// Returns true if a non-zero amount of memory is locked.
@@ -1871,7 +1886,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)
+            .open(path)
             .unwrap();
         file.set_len(128).unwrap();
 

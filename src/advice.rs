@@ -1,35 +1,40 @@
-// The use statement is needed for the `cargo docs`
-#[allow(unused_imports)]
-use crate::{Mmap, MmapMut};
-
-/// Values supported by [`Mmap::advise`] and [`MmapMut::advise`] functions.
+/// Values supported by [`Mmap::advise`][crate::Mmap::advise] and [`MmapMut::advise`][crate::MmapMut::advise] functions.
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
-#[repr(i32)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Advice {
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct Advice(pub(crate) libc::c_int);
+
+impl Advice {
     /// **MADV_NORMAL**
     ///
     /// No special treatment.  This is the default.
-    Normal = libc::MADV_NORMAL,
+    pub fn normal() -> Self {
+        Self(libc::MADV_NORMAL)
+    }
 
     /// **MADV_RANDOM**
     ///
     /// Expect page references in random order.  (Hence, read
     /// ahead may be less useful than normally.)
-    Random = libc::MADV_RANDOM,
+    pub fn random() -> Self {
+        Self(libc::MADV_RANDOM)
+    }
 
     /// **MADV_SEQUENTIAL**
     ///
     /// Expect page references in sequential order.  (Hence, pages
     /// in the given range can be aggressively read ahead, and may
     /// be freed soon after they are accessed.)
-    Sequential = libc::MADV_SEQUENTIAL,
+    pub fn sequential() -> Self {
+        Self(libc::MADV_SEQUENTIAL)
+    }
 
     /// **MADV_WILLNEED**
     ///
     /// Expect access in the near future.  (Hence, it might be a
     /// good idea to read some pages ahead.)
-    WillNeed = libc::MADV_WILLNEED,
+    pub fn will_need() -> Self {
+        Self(libc::MADV_WILLNEED)
+    }
 
     /// **MADV_DONTNEED**
     ///
@@ -60,7 +65,15 @@ pub enum Advice {
     /// not managed by the virtual memory subsystem.  Such pages
     /// are typically created by device drivers that map the pages
     /// into user space.)
-    DontNeed = libc::MADV_DONTNEED,
+    ///
+    /// # Safety
+    ///
+    /// Using the returned value with conceptually write to the
+    /// mapped pages, i.e. borrowing the mapping when the pages
+    /// are freed results in undefined behaviour.
+    pub unsafe fn dont_need() -> Self {
+        Self(libc::MADV_DONTNEED)
+    }
 
     //
     // The rest are Linux-specific
@@ -88,8 +101,16 @@ pub enum Advice {
     /// 4.12, when freeing pages on a swapless system, the pages
     /// in the given range are freed instantly, regardless of
     /// memory pressure.
+    ///
+    /// # Safety
+    ///
+    /// Using the returned value with conceptually write to the
+    /// mapped pages, i.e. borrowing the mapping while the pages
+    /// are still being freed results in undefined behaviour.
     #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
-    Free = libc::MADV_FREE,
+    pub unsafe fn free() -> Self {
+        Self(libc::MADV_FREE)
+    }
 
     /// **MADV_REMOVE** - Linux only (since Linux 2.6.16)
     ///
@@ -109,8 +130,16 @@ pub enum Advice {
     /// supports MADV_REMOVE.  Hugetlbfs fails with the error
     /// EINVAL and other filesystems fail with the error
     /// EOPNOTSUPP.
+    ///
+    /// # Safety
+    ///
+    /// Using the returned value with conceptually write to the
+    /// mapped pages, i.e. borrowing the mapping when the pages
+    /// are freed results in undefined behaviour.
     #[cfg(target_os = "linux")]
-    Remove = libc::MADV_REMOVE,
+    pub unsafe fn remove() -> Self {
+        Self(libc::MADV_REMOVE)
+    }
 
     /// **MADV_DONTFORK** - Linux only (since Linux 2.6.16)
     ///
@@ -120,15 +149,27 @@ pub enum Advice {
     /// the parent writes to it after a fork(2).  (Such page
     /// relocations cause problems for hardware that DMAs into the
     /// page.)
+    ///
+    /// # Safety
+    ///
+    /// TODO
     #[cfg(target_os = "linux")]
-    DontFork = libc::MADV_DONTFORK,
+    pub unsafe fn dont_fork() -> Self {
+        Self(libc::MADV_DONTFORK)
+    }
 
     /// **MADV_DOFORK** - Linux only (since Linux 2.6.16)
     ///
     /// Undo the effect of MADV_DONTFORK, restoring the default
     /// behavior, whereby a mapping is inherited across fork(2).
+    ///
+    /// # Safety
+    ///
+    /// See [`dont_fork`][Self::dont_fork].
     #[cfg(target_os = "linux")]
-    DoFork = libc::MADV_DOFORK,
+    pub unsafe fn do_fork() -> Self {
+        Self(libc::MADV_DOFORK)
+    }
 
     /// **MADV_MERGEABLE** - Linux only (since Linux 2.6.32)
     ///
@@ -151,7 +192,9 @@ pub enum Advice {
     /// available only if the kernel was configured with
     /// CONFIG_KSM.
     #[cfg(target_os = "linux")]
-    Mergeable = libc::MADV_MERGEABLE,
+    pub fn mergeable() -> Self {
+        Self(libc::MADV_MERGEABLE)
+    }
 
     /// **MADV_UNMERGEABLE** - Linux only (since Linux 2.6.32)
     ///
@@ -160,7 +203,9 @@ pub enum Advice {
     /// it had merged in the address range specified by addr and
     /// length.
     #[cfg(target_os = "linux")]
-    Unmergeable = libc::MADV_UNMERGEABLE,
+    pub fn unmergeable() -> Self {
+        Self(libc::MADV_UNMERGEABLE)
+    }
 
     /// **MADV_HUGEPAGE** - Linux only (since Linux 2.6.38)
     ///
@@ -199,14 +244,18 @@ pub enum Advice {
     /// available only if the kernel was configured with
     /// CONFIG_TRANSPARENT_HUGEPAGE.
     #[cfg(target_os = "linux")]
-    HugePage = libc::MADV_HUGEPAGE,
+    pub fn huge_page() -> Self {
+        Self(libc::MADV_HUGEPAGE)
+    }
 
     /// **MADV_NOHUGEPAGE** - Linux only (since Linux 2.6.38)
     ///
     /// Ensures that memory in the address range specified by addr
     /// and length will not be backed by transparent hugepages.
     #[cfg(target_os = "linux")]
-    NoHugePage = libc::MADV_NOHUGEPAGE,
+    pub fn no_huge_page() -> Self {
+        Self(libc::MADV_NOHUGEPAGE)
+    }
 
     /// **MADV_DONTDUMP** - Linux only (since Linux 3.4)
     ///
@@ -218,13 +267,17 @@ pub enum Advice {
     /// set via the `/proc/[pid]/coredump_filter` file (see
     /// core(5)).
     #[cfg(target_os = "linux")]
-    DontDump = libc::MADV_DONTDUMP,
+    pub fn dont_dump() -> Self {
+        Self(libc::MADV_DONTDUMP)
+    }
 
     /// **MADV_DODUMP** - Linux only (since Linux 3.4)
     ///
     /// Undo the effect of an earlier MADV_DONTDUMP.
     #[cfg(target_os = "linux")]
-    DoDump = libc::MADV_DODUMP,
+    pub fn do_dump() -> Self {
+        Self(libc::MADV_DODUMP)
+    }
 
     /// **MADV_HWPOISON** - Linux only (since Linux 2.6.32)
     ///
@@ -239,7 +292,9 @@ pub enum Advice {
     /// handling code; it is available only if the kernel was
     /// configured with CONFIG_MEMORY_FAILURE.
     #[cfg(target_os = "linux")]
-    HwPoison = libc::MADV_HWPOISON,
+    pub fn hw_poison() -> Self {
+        Self(libc::MADV_HWPOISON)
+    }
 
     /// **MADV_POPULATE_READ** - Linux only (since Linux 5.14)
     ///
@@ -274,7 +329,9 @@ pub enum Advice {
     /// Note  that with MADV_POPULATE_READ, the process can be killed
     /// at any moment when the system runs out of memory.
     #[cfg(target_os = "linux")]
-    PopulateRead = libc::MADV_POPULATE_READ,
+    pub fn populate_read() -> Self {
+        Self(libc::MADV_POPULATE_READ)
+    }
 
     /// **MADV_POPULATE_WRITE** - Linux only (since Linux 5.14)
     ///
@@ -306,7 +363,9 @@ pub enum Advice {
     /// Note that with MADV_POPULATE_WRITE, the process can be killed
     /// at any moment when the system runs out of memory.
     #[cfg(target_os = "linux")]
-    PopulateWrite = libc::MADV_POPULATE_WRITE,
+    pub fn populate_write() -> Self {
+        Self(libc::MADV_POPULATE_WRITE)
+    }
 
     /// **MADV_ZERO_WIRED_PAGES** - Darwin only
     ///
@@ -315,21 +374,39 @@ pub enum Advice {
     /// a munmap(2) without a preceding munlock(2) or the application quits).  This is used
     /// with madvise() system call.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
-    ZeroWiredPages = libc::MADV_ZERO_WIRED_PAGES,
+    pub fn zero_wired_pages() -> Self {
+        Self(libc::MADV_ZERO_WIRED_PAGES)
+    }
 
     /// **MADV_FREE_REUSABLE** - Darwin only
     ///
     /// Behaves like **MADV_FREE**, but the freed pages are accounted for in the RSS of the process.
+    ///
+    /// # Safety
+    ///
+    /// Using the returned value with conceptually write to the
+    /// mapped pages, i.e. borrowing the mapping while the pages
+    /// are still being freed results in undefined behaviour.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
-    FreeReusable = libc::MADV_FREE_REUSABLE,
+    pub unsafe fn free_reusable() -> Self {
+        Self(libc::MADV_FREE_REUSABLE)
+    }
 
     /// **MADV_FREE_REUSE** - Darwin only
     ///
     /// Marks a memory region previously freed by **MADV_FREE_REUSABLE** as non-reusable, accounts
     /// for the pages in the RSS of the process. Pages that have been freed will be replaced by
     /// zero-filled pages on demand, other pages will be left as is.
+    ///
+    /// # Safety
+    ///
+    /// Using the returned value with conceptually write to the
+    /// mapped pages, i.e. borrowing the mapping while the pages
+    /// are still being freed results in undefined behaviour.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
-    FreeReuse = libc::MADV_FREE_REUSE,
+    pub unsafe fn free_reuse() -> Self {
+        Self(libc::MADV_FREE_REUSE)
+    }
 }
 
 // Future expansion:
