@@ -149,12 +149,8 @@ impl Advice {
     /// the parent writes to it after a fork(2).  (Such page
     /// relocations cause problems for hardware that DMAs into the
     /// page.)
-    ///
-    /// # Safety
-    ///
-    /// TODO
     #[cfg(target_os = "linux")]
-    pub unsafe fn dont_fork() -> Self {
+    pub fn dont_fork() -> Self {
         Self(libc::MADV_DONTFORK)
     }
 
@@ -162,12 +158,8 @@ impl Advice {
     ///
     /// Undo the effect of MADV_DONTFORK, restoring the default
     /// behavior, whereby a mapping is inherited across fork(2).
-    ///
-    /// # Safety
-    ///
-    /// See [`dont_fork`][Self::dont_fork].
     #[cfg(target_os = "linux")]
-    pub unsafe fn do_fork() -> Self {
+    pub fn do_fork() -> Self {
         Self(libc::MADV_DOFORK)
     }
 
