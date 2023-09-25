@@ -1,6 +1,6 @@
 /// Values supported by [`Mmap::advise`][crate::Mmap::advise] and [`MmapMut::advise`][crate::MmapMut::advise] functions.
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Advice(pub(crate) libc::c_int);
 
 impl Advice {
