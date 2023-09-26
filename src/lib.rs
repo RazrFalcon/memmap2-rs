@@ -47,7 +47,7 @@ use crate::os::{file_len, MmapInner};
 #[cfg(unix)]
 mod advice;
 #[cfg(unix)]
-pub use crate::advice::Advice;
+pub use crate::advice::{Advice, AsRawAdvice, UnsafeAdvice};
 
 use std::fmt;
 #[cfg(not(any(unix, windows)))]
@@ -643,8 +643,12 @@ impl Mmap {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice, 0, self.inner.len())
+    pub fn advise<A>(&self, advice: A) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner
+            .advise(advice.as_raw_advice(), 0, self.inner.len())
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -655,8 +659,11 @@ impl Mmap {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
-        self.inner.advise(advice, offset, len)
+    pub fn advise_range<A>(&self, advice: A, offset: usize, len: usize) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner.advise(advice.as_raw_advice(), offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -856,8 +863,12 @@ impl MmapRaw {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice, 0, self.inner.len())
+    pub fn advise<A>(&self, advice: A) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner
+            .advise(advice.as_raw_advice(), 0, self.inner.len())
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -868,8 +879,11 @@ impl MmapRaw {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
-        self.inner.advise(advice, offset, len)
+    pub fn advise_range<A>(&self, advice: A, offset: usize, len: usize) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner.advise(advice.as_raw_advice(), offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -1146,8 +1160,12 @@ impl MmapMut {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise(&self, advice: Advice) -> Result<()> {
-        self.inner.advise(advice, 0, self.inner.len())
+    pub fn advise<A>(&self, advice: A) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner
+            .advise(advice.as_raw_advice(), 0, self.inner.len())
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -1158,8 +1176,11 @@ impl MmapMut {
     ///
     /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
     #[cfg(unix)]
-    pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
-        self.inner.advise(advice, offset, len)
+    pub fn advise_range<A>(&self, advice: A, offset: usize, len: usize) -> Result<()>
+    where
+        A: AsRawAdvice,
+    {
+        self.inner.advise(advice.as_raw_advice(), offset, len)
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -1293,7 +1314,7 @@ mod test {
     extern crate tempfile;
 
     #[cfg(unix)]
-    use crate::advice::Advice;
+    use crate::advice::{Advice, UnsafeAdvice};
     use std::fs::{File, OpenOptions};
     use std::io::{Read, Write};
     use std::mem;
@@ -1855,11 +1876,31 @@ mod test {
         let mmap = mmap.make_read_only().unwrap();
 
         let a = mmap.as_ref()[0];
-        mmap.advise(unsafe { Advice::dont_need() }).unwrap();
+        mmap.advise(unsafe { UnsafeAdvice::dont_need() }).unwrap();
         let b = mmap.as_ref()[0];
 
         assert_eq!(a, 255);
         assert_eq!(b, 0);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn advise_writes_unsafely_to_part_of_map() {
+        let mut mmap = MmapMut::map_anon(8192).unwrap();
+        mmap.as_mut().fill(255);
+        let mmap = mmap.make_read_only().unwrap();
+
+        let a = mmap.as_ref()[0];
+        let b = mmap.as_ref()[4096];
+        mmap.advise_range(unsafe { UnsafeAdvice::dont_need() }, 4096, 4096)
+            .unwrap();
+        let c = mmap.as_ref()[0];
+        let d = mmap.as_ref()[4096];
+
+        assert_eq!(a, 255);
+        assert_eq!(b, 255);
+        assert_eq!(c, 255);
+        assert_eq!(d, 0);
     }
 
     /// Returns true if a non-zero amount of memory is locked.

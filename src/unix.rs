@@ -6,8 +6,6 @@ use std::os::unix::io::{FromRawFd, RawFd};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, ptr};
 
-use crate::advice::Advice;
-
 #[cfg(any(
     all(target_os = "linux", not(target_arch = "mips")),
     target_os = "freebsd",
@@ -342,12 +340,12 @@ impl MmapInner {
         self.len
     }
 
-    pub fn advise(&self, advice: Advice, offset: usize, len: usize) -> io::Result<()> {
+    pub fn advise(&self, advice: libc::c_int, offset: usize, len: usize) -> io::Result<()> {
         let alignment = (self.ptr as usize + offset) % page_size();
         let offset = offset as isize - alignment as isize;
         let len = len + alignment;
         unsafe {
-            if libc::madvise(self.ptr.offset(offset), len, advice.0) != 0 {
+            if libc::madvise(self.ptr.offset(offset), len, advice) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())
