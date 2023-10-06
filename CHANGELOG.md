@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Added `MmapOptions::huge` method to support mapping hugetlb. Linux only.
+  [@ollie-etl](https://github.com/ollie-etl)
+  [@oliverbunting](https://github.com/oliverbunting)
 
 ## [0.9.0] - 2023-10-03
 ### Changed

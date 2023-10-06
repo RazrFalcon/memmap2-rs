@@ -26,6 +26,18 @@ const MAP_POPULATE: libc::c_int = libc::MAP_POPULATE;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 const MAP_POPULATE: libc::c_int = 0;
 
+#[cfg(target_os = "linux")]
+const MAP_HUGETLB: libc::c_int = libc::MAP_HUGETLB;
+
+#[cfg(not(target_os = "linux"))]
+const MAP_HUGETLB: libc::c_int = 0;
+
+#[cfg(target_os = "linux")]
+const MAP_HUGE_SHIFT: libc::c_int = libc::MAP_HUGE_SHIFT;
+
+#[cfg(not(target_os = "linux"))]
+const MAP_HUGE_SHIFT: libc::c_int = 0;
+
 #[cfg(any(
     target_os = "android",
     all(target_os = "linux", not(target_env = "musl"))
@@ -261,15 +273,17 @@ impl MmapInner {
     }
 
     /// Open an anonymous memory map.
-    pub fn map_anon(len: usize, stack: bool, populate: bool) -> io::Result<MmapInner> {
+    pub fn map_anon(len: usize, stack: bool, populate: bool, huge: Option<usize>) -> io::Result<MmapInner> {
         let stack = if stack { MAP_STACK } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
+        let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
+        let offset   = ((huge.unwrap_or(0) & 0x3F) << MAP_HUGE_SHIFT) as u64;
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE | libc::MAP_ANON | stack | populate,
+            libc::MAP_PRIVATE | libc::MAP_ANON | stack | populate | hugetlb,
             -1,
-            0,
+            offset,
         )
     }
 

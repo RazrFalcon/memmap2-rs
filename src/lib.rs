@@ -140,6 +140,7 @@ where
 pub struct MmapOptions {
     offset: u64,
     len: Option<usize>,
+    huge: Option<usize>,
     stack: bool,
     populate: bool,
 }
@@ -281,6 +282,30 @@ impl MmapOptions {
         self
     }
 
+    /// Configures the anonymous memory map to be allocated using huge pages.
+    ///
+    /// This option corresponds to the `MAP_HUGETLB` flag on Linux. It has no effect on Windows.
+    ///
+    /// The size of the requested page can be specified in page bits. If not provided, the system
+    /// default is requested. The requested length should be a multiple of this, or the mapping
+    /// will fail.
+    ///
+    /// This option has no effect on file-backed memory maps.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use memmap2::MmapOptions;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let stack = MmapOptions::new().huge(Some(21)).len(2*1024*1024).map_anon();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn huge(&mut self, page_bits: Option<usize>) -> &mut Self {
+        self.huge = Some(page_bits.unwrap_or(0));
+        self
+    }
     /// Populate (prefault) page tables for a mapping.
     ///
     /// For a file mapping, this causes read-ahead on the file. This will help to reduce blocking on page faults later.
@@ -484,7 +509,7 @@ impl MmapOptions {
             ));
         }
 
-        MmapInner::map_anon(len, self.stack, self.populate).map(|inner| MmapMut { inner })
+        MmapInner::map_anon(len, self.stack, self.populate, self.huge).map(|inner| MmapMut { inner })
     }
 
     /// Creates a raw memory map.
