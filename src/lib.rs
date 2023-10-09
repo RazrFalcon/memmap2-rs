@@ -509,7 +509,8 @@ impl MmapOptions {
             ));
         }
 
-        MmapInner::map_anon(len, self.stack, self.populate, self.huge).map(|inner| MmapMut { inner })
+        MmapInner::map_anon(len, self.stack, self.populate, self.huge)
+            .map(|inner| MmapMut { inner })
     }
 
     /// Creates a raw memory map.

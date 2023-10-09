@@ -273,11 +273,16 @@ impl MmapInner {
     }
 
     /// Open an anonymous memory map.
-    pub fn map_anon(len: usize, stack: bool, populate: bool, huge: Option<usize>) -> io::Result<MmapInner> {
+    pub fn map_anon(
+        len: usize,
+        stack: bool,
+        populate: bool,
+        huge: Option<usize>,
+    ) -> io::Result<MmapInner> {
         let stack = if stack { MAP_STACK } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
         let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
-        let offset   = ((huge.unwrap_or(0) & 0x3F) << MAP_HUGE_SHIFT) as u64;
+        let offset = ((huge.unwrap_or(0) & 0x3F) << MAP_HUGE_SHIFT) as u64;
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
