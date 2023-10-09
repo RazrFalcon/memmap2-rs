@@ -140,7 +140,7 @@ where
 pub struct MmapOptions {
     offset: u64,
     len: Option<usize>,
-    huge: Option<usize>,
+    huge: Option<u8>,
     stack: bool,
     populate: bool,
 }
@@ -302,7 +302,7 @@ impl MmapOptions {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn huge(&mut self, page_bits: Option<usize>) -> &mut Self {
+    pub fn huge(&mut self, page_bits: Option<u8>) -> &mut Self {
         self.huge = Some(page_bits.unwrap_or(0));
         self
     }

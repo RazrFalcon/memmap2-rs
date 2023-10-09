@@ -347,7 +347,7 @@ impl MmapInner {
         len: usize,
         _stack: bool,
         _populate: bool,
-        _huge: Option<usize>,
+        _huge: Option<u8>,
     ) -> io::Result<MmapInner> {
         // Ensure a non-zero length for the underlying mapping
         let mapped_len = len.max(1);

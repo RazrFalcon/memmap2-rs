@@ -26,16 +26,22 @@ const MAP_POPULATE: libc::c_int = libc::MAP_POPULATE;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 const MAP_POPULATE: libc::c_int = 0;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
 const MAP_HUGETLB: libc::c_int = libc::MAP_HUGETLB;
 
-#[cfg(not(target_os = "linux"))]
-const MAP_HUGETLB: libc::c_int = 0;
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
+const MAP_HUGE_MASK: libc::c_int = libc::MAP_HUGE_MASK;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "android"))]
 const MAP_HUGE_SHIFT: libc::c_int = libc::MAP_HUGE_SHIFT;
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "android")))]
+const MAP_HUGETLB: libc::c_int = 0;
+
+#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "android")))]
+const MAP_HUGE_MASK: libc::c_int = 0;
+
+#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "android")))]
 const MAP_HUGE_SHIFT: libc::c_int = 0;
 
 #[cfg(any(
@@ -277,12 +283,18 @@ impl MmapInner {
         len: usize,
         stack: bool,
         populate: bool,
-        huge: Option<usize>,
+        huge: Option<u8>,
     ) -> io::Result<MmapInner> {
         let stack = if stack { MAP_STACK } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
-        let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
-        let offset = ((huge.unwrap_or(0) & 0x3F) << MAP_HUGE_SHIFT) as u64;
+        let (hugetlb, offset) = huge
+            .map(|huge| {
+                (
+                    MAP_HUGETLB,
+                    ((huge as u64) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT,
+                )
+            })
+            .unwrap_or((0, 0));
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
