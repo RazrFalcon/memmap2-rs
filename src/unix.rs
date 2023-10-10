@@ -287,14 +287,14 @@ impl MmapInner {
     ) -> io::Result<MmapInner> {
         let stack = if stack { MAP_STACK } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
-        let (hugetlb, offset) = huge
-            .map(|huge| {
-                (
-                    MAP_HUGETLB,
-                    ((huge as u64) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT,
-                )
-            })
-            .unwrap_or((0, 0));
+        let (hugetlb, offset) = if let Some(mask) = huge {
+            (
+                MAP_HUGETLB,
+                ((mask as u64) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT,
+            )
+        } else {
+            (0, 0)
+        };
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
