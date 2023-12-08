@@ -1969,7 +1969,9 @@ mod test {
     #[test]
     #[cfg(target_os = "linux")]
     fn advise_writes_unsafely() {
-        let mut mmap = MmapMut::map_anon(4096).unwrap();
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+
+        let mut mmap = MmapMut::map_anon(page_size).unwrap();
         mmap.as_mut().fill(255);
         let mmap = mmap.make_read_only().unwrap();
 
@@ -1986,18 +1988,20 @@ mod test {
     #[test]
     #[cfg(target_os = "linux")]
     fn advise_writes_unsafely_to_part_of_map() {
-        let mut mmap = MmapMut::map_anon(8192).unwrap();
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+
+        let mut mmap = MmapMut::map_anon(2 * page_size).unwrap();
         mmap.as_mut().fill(255);
         let mmap = mmap.make_read_only().unwrap();
 
         let a = mmap.as_ref()[0];
-        let b = mmap.as_ref()[4096];
+        let b = mmap.as_ref()[page_size];
         unsafe {
-            mmap.unchecked_advise_range(UncheckedAdvice::DontNeed, 4096, 4096)
+            mmap.unchecked_advise_range(UncheckedAdvice::DontNeed, page_size, page_size)
                 .unwrap();
         }
         let c = mmap.as_ref()[0];
-        let d = mmap.as_ref()[4096];
+        let d = mmap.as_ref()[page_size];
 
         assert_eq!(a, 255);
         assert_eq!(b, 255);
