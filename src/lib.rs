@@ -687,6 +687,17 @@ impl Mmap {
         Ok(MmapMut { inner: self.inner })
     }
 
+    /// Allocates memory charges (from the overall size of memory and the paging files on disk)
+    /// for the specified reserved memory pages.
+    ///
+    /// Only supported on Windows.
+    ///
+    /// See [VirtualAlloc()](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc#MEM_COMMIT) page.
+    #[cfg(windows)]
+    pub fn commit(&self, offset: usize, len: usize) -> Result<&[u8]> {
+        self.inner.commit(offset, len)
+    }
+
     /// Advise OS how this memory map will be accessed.
     ///
     /// Only supported on Unix.
@@ -929,6 +940,17 @@ impl MmapRaw {
     /// be flushed as well.
     pub fn flush_async_range(&self, offset: usize, len: usize) -> Result<()> {
         self.inner.flush_async(offset, len)
+    }
+
+    /// Allocates memory charges (from the overall size of memory and the paging files on disk)
+    /// for the specified reserved memory pages.
+    ///
+    /// Only supported on Windows.
+    ///
+    /// See [VirtualAlloc()](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc#MEM_COMMIT) page.
+    #[cfg(windows)]
+    pub fn commit(&self, offset: usize, len: usize) -> Result<&mut [u8]> {
+        self.inner.commit_mut(offset, len)
     }
 
     /// Advise OS how this memory map will be accessed.
@@ -1252,6 +1274,17 @@ impl MmapMut {
         Ok(Mmap { inner: self.inner })
     }
 
+    /// Allocates memory charges (from the overall size of memory and the paging files on disk)
+    /// for the specified reserved memory pages.
+    ///
+    /// Only supported on Windows.
+    ///
+    /// See [VirtualAlloc()](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc#MEM_COMMIT) page.
+    #[cfg(windows)]
+    pub fn commit(&self, offset: usize, len: usize) -> Result<&mut [u8]> {
+        self.inner.commit_mut(offset, len)
+    }
+
     /// Advise OS how this memory map will be accessed.
     ///
     /// Only supported on Unix.
@@ -1556,6 +1589,34 @@ mod test {
     #[test]
     fn map_anon_zero_len() {
         assert!(MmapOptions::new().map_anon().unwrap().is_empty())
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn map_anon_no_reserve() {
+        let expected_len = 1024 * 1024 * 1024 * 1024;
+        let mmap: MmapMut = MmapOptions::new()
+            .no_reserve()
+            .len(expected_len)
+            .map_anon()
+            .unwrap();
+        let len = mmap.len();
+        assert_eq!(expected_len, len);
+
+        // check that the last page of mmap is empty
+        let page_size = unsafe { super::os::page_size() };
+
+        let zeros = vec![0; page_size];
+        let incr: Vec<u8> = (0..zeros.len()).map(|n| n as u8).collect();
+
+        let view = mmap.commit(expected_len - page_size, page_size).unwrap();
+        assert_eq!(&zeros[..], view);
+
+        // write values into the mmap
+        view.copy_from_slice(incr.as_slice());
+
+        // read values back
+        assert_eq!(&incr[..], view);
     }
 
     #[test]

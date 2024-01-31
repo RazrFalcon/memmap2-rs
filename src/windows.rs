@@ -2,10 +2,10 @@
 #![allow(non_snake_case)]
 
 use std::fs::File;
-use std::mem::ManuallyDrop;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::os::raw::c_void;
 use std::os::windows::io::{FromRawHandle, RawHandle};
-use std::{io, mem, ptr};
+use std::{io, mem, ptr, slice};
 
 type BOOL = i32;
 type WORD = u16;
@@ -54,6 +54,10 @@ const FILE_MAP_READ: DWORD = SECTION_MAP_READ;
 const FILE_MAP_ALL_ACCESS: DWORD = SECTION_ALL_ACCESS;
 const FILE_MAP_EXECUTE: DWORD = SECTION_MAP_EXECUTE_EXPLICIT;
 const FILE_MAP_COPY: DWORD = 0x00000001;
+
+const MEM_COMMIT: DWORD = 0x00001000;
+
+const SEC_RESERVE: DWORD = 0x04000000;
 
 #[repr(C)]
 struct SECURITY_ATTRIBUTES {
@@ -129,7 +133,22 @@ extern "system" {
         lpflOldProtect: PDWORD,
     ) -> BOOL;
 
+    fn VirtualAlloc(
+        lpAddress: LPVOID,
+        dwSize: SIZE_T,
+        flAllocationType: DWORD,
+        flProtect: DWORD,
+    ) -> LPVOID;
+
     fn GetSystemInfo(lpSystemInfo: LPSYSTEM_INFO);
+}
+
+pub(crate) unsafe fn page_size() -> usize {
+    let mut si = MaybeUninit::zeroed();
+
+    super::os::GetSystemInfo(si.as_mut_ptr());
+
+    si.assume_init().dwPageSize as usize
 }
 
 /// Returns a fixed aligned pointer that is valid for `slice::from_raw_parts::<u8>` with `len == 0`.
@@ -347,7 +366,7 @@ impl MmapInner {
         len: usize,
         _stack: bool,
         _populate: bool,
-        _no_reserve: bool,
+        no_reserve: bool,
         _huge: Option<u8>,
     ) -> io::Result<MmapInner> {
         // Ensure a non-zero length for the underlying mapping
@@ -358,10 +377,12 @@ impl MmapInner {
             // on.
             // Also see https://msdn.microsoft.com/en-us/library/windows/desktop/aa366537.aspx
 
+            let protect = PAGE_EXECUTE_READWRITE | if no_reserve { SEC_RESERVE } else { 0 };
+
             let mapping = CreateFileMappingW(
                 INVALID_HANDLE_VALUE,
                 ptr::null_mut(),
-                PAGE_EXECUTE_READWRITE,
+                protect,
                 (mapped_len >> 16 >> 16) as DWORD,
                 (mapped_len & 0xffffffff) as DWORD,
                 ptr::null(),
@@ -377,9 +398,7 @@ impl MmapInner {
                 return Err(io::Error::last_os_error());
             }
 
-            let mut old = 0;
-            let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
-            if result != 0 {
+            if no_reserve {
                 Ok(MmapInner {
                     handle: None,
                     ptr,
@@ -387,7 +406,18 @@ impl MmapInner {
                     copy: false,
                 })
             } else {
-                Err(io::Error::last_os_error())
+                let mut old = 0;
+                let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
+                if result != 0 {
+                    Ok(MmapInner {
+                        handle: None,
+                        ptr,
+                        len: len as usize,
+                        copy: false,
+                    })
+                } else {
+                    Err(io::Error::last_os_error())
+                }
             }
         }
     }
@@ -414,6 +444,38 @@ impl MmapInner {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
+        }
+    }
+
+    pub fn commit(&self, offset: usize, len: usize) -> io::Result<&[u8]> {
+        let ptr = unsafe {
+            VirtualAlloc(
+                self.ptr.add(offset),
+                len as SIZE_T,
+                MEM_COMMIT,
+                PAGE_READONLY,
+            )
+        };
+        if !ptr.is_null() {
+            Ok(unsafe { slice::from_raw_parts(ptr.cast(), len) })
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
+    pub fn commit_mut(&self, offset: usize, len: usize) -> io::Result<&mut [u8]> {
+        let ptr = unsafe {
+            VirtualAlloc(
+                self.ptr.add(offset),
+                len as SIZE_T,
+                MEM_COMMIT,
+                PAGE_READWRITE,
+            )
+        };
+        if ptr.is_null() {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(unsafe { slice::from_raw_parts_mut(ptr.cast(), len) })
         }
     }
 
