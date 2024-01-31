@@ -2,146 +2,39 @@
 #![allow(non_snake_case)]
 
 use std::fs::File;
-use std::mem::ManuallyDrop;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::os::raw::c_void;
 use std::os::windows::io::{FromRawHandle, RawHandle};
-use std::{io, mem, ptr};
+use std::{io, ptr};
 
-type BOOL = i32;
-type WORD = u16;
-type DWORD = u32;
-type WCHAR = u16;
-type HANDLE = *mut c_void;
-type LPHANDLE = *mut HANDLE;
-type LPVOID = *mut c_void;
-type LPCVOID = *const c_void;
-type ULONG_PTR = usize;
-type SIZE_T = ULONG_PTR;
-type LPCWSTR = *const WCHAR;
-type PDWORD = *mut DWORD;
-type DWORD_PTR = ULONG_PTR;
-type LPSECURITY_ATTRIBUTES = *mut SECURITY_ATTRIBUTES;
-type LPSYSTEM_INFO = *mut SYSTEM_INFO;
-
-const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
-
-const DUPLICATE_SAME_ACCESS: DWORD = 0x00000002;
-
-const STANDARD_RIGHTS_REQUIRED: DWORD = 0x000F0000;
-
-const SECTION_QUERY: DWORD = 0x0001;
-const SECTION_MAP_WRITE: DWORD = 0x0002;
-const SECTION_MAP_READ: DWORD = 0x0004;
-const SECTION_MAP_EXECUTE: DWORD = 0x0008;
-const SECTION_EXTEND_SIZE: DWORD = 0x0010;
-const SECTION_MAP_EXECUTE_EXPLICIT: DWORD = 0x0020;
-const SECTION_ALL_ACCESS: DWORD = STANDARD_RIGHTS_REQUIRED
-    | SECTION_QUERY
-    | SECTION_MAP_WRITE
-    | SECTION_MAP_READ
-    | SECTION_MAP_EXECUTE
-    | SECTION_EXTEND_SIZE;
-
-const PAGE_READONLY: DWORD = 0x02;
-const PAGE_READWRITE: DWORD = 0x04;
-const PAGE_WRITECOPY: DWORD = 0x08;
-const PAGE_EXECUTE_READ: DWORD = 0x20;
-const PAGE_EXECUTE_READWRITE: DWORD = 0x40;
-const PAGE_EXECUTE_WRITECOPY: DWORD = 0x80;
-
-const FILE_MAP_WRITE: DWORD = SECTION_MAP_WRITE;
-const FILE_MAP_READ: DWORD = SECTION_MAP_READ;
-const FILE_MAP_ALL_ACCESS: DWORD = SECTION_ALL_ACCESS;
-const FILE_MAP_EXECUTE: DWORD = SECTION_MAP_EXECUTE_EXPLICIT;
-const FILE_MAP_COPY: DWORD = 0x00000001;
-
-#[repr(C)]
-struct SECURITY_ATTRIBUTES {
-    nLength: DWORD,
-    lpSecurityDescriptor: LPVOID,
-    bInheritHandle: BOOL,
-}
-
-#[repr(C)]
-struct SYSTEM_INFO {
-    wProcessorArchitecture: WORD,
-    wReserved: WORD,
-    dwPageSize: DWORD,
-    lpMinimumApplicationAddress: LPVOID,
-    lpMaximumApplicationAddress: LPVOID,
-    dwActiveProcessorMask: DWORD_PTR,
-    dwNumberOfProcessors: DWORD,
-    dwProcessorType: DWORD,
-    dwAllocationGranularity: DWORD,
-    wProcessorLevel: WORD,
-    wProcessorRevision: WORD,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct FILETIME {
-    pub dwLowDateTime: DWORD,
-    pub dwHighDateTime: DWORD,
-}
-
-extern "system" {
-    fn GetCurrentProcess() -> HANDLE;
-
-    fn CloseHandle(hObject: HANDLE) -> BOOL;
-
-    fn DuplicateHandle(
-        hSourceProcessHandle: HANDLE,
-        hSourceHandle: HANDLE,
-        hTargetProcessHandle: HANDLE,
-        lpTargetHandle: LPHANDLE,
-        dwDesiredAccess: DWORD,
-        bInheritHandle: BOOL,
-        dwOptions: DWORD,
-    ) -> BOOL;
-
-    fn CreateFileMappingW(
-        hFile: HANDLE,
-        lpFileMappingAttributes: LPSECURITY_ATTRIBUTES,
-        flProtect: DWORD,
-        dwMaximumSizeHigh: DWORD,
-        dwMaximumSizeLow: DWORD,
-        lpName: LPCWSTR,
-    ) -> HANDLE;
-
-    fn FlushFileBuffers(hFile: HANDLE) -> BOOL;
-
-    fn FlushViewOfFile(lpBaseAddress: LPCVOID, dwNumberOfBytesToFlush: SIZE_T) -> BOOL;
-
-    fn UnmapViewOfFile(lpBaseAddress: LPCVOID) -> BOOL;
-
-    fn MapViewOfFile(
-        hFileMappingObject: HANDLE,
-        dwDesiredAccess: DWORD,
-        dwFileOffsetHigh: DWORD,
-        dwFileOffsetLow: DWORD,
-        dwNumberOfBytesToMap: SIZE_T,
-    ) -> LPVOID;
-
-    fn VirtualProtect(
-        lpAddress: LPVOID,
-        dwSize: SIZE_T,
-        flNewProtect: DWORD,
-        lpflOldProtect: PDWORD,
-    ) -> BOOL;
-
-    fn GetSystemInfo(lpSystemInfo: LPSYSTEM_INFO);
-}
+use windows_sys::Win32::{
+    Foundation::{
+        CloseHandle, DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE, INVALID_HANDLE_VALUE,
+    },
+    Storage::FileSystem::FlushFileBuffers,
+    System::{
+        Memory::{
+            CreateFileMappingW, FlushViewOfFile, MapViewOfFile, UnmapViewOfFile, VirtualProtect,
+            FILE_MAP, FILE_MAP_ALL_ACCESS, FILE_MAP_COPY, FILE_MAP_EXECUTE, FILE_MAP_READ,
+            FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE,
+            PAGE_EXECUTE_WRITECOPY, PAGE_PROTECTION_FLAGS, PAGE_READONLY, PAGE_READWRITE,
+            PAGE_WRITECOPY,
+        },
+        SystemInformation::GetSystemInfo,
+        Threading::GetCurrentProcess,
+    },
+};
 
 /// Returns a fixed aligned pointer that is valid for `slice::from_raw_parts::<u8>` with `len == 0`.
 ///
 /// This aligns the pointer to `allocation_granularity()` or 1 if unknown.
 fn empty_slice_ptr() -> *mut c_void {
     let align = allocation_granularity().max(1);
-    unsafe { mem::transmute(align) }
+    align as *mut _
 }
 
 pub struct MmapInner {
-    handle: Option<RawHandle>,
+    handle: Option<HANDLE>,
     ptr: *mut c_void,
     len: usize,
     copy: bool,
@@ -153,8 +46,8 @@ impl MmapInner {
     /// This is a thin wrapper around the `CreateFileMappingW` and `MapViewOfFile` system calls.
     pub fn new(
         handle: RawHandle,
-        protect: DWORD,
-        access: DWORD,
+        protect: PAGE_PROTECTION_FLAGS,
+        access: FILE_MAP,
         offset: u64,
         len: usize,
         copy: bool,
@@ -180,30 +73,37 @@ impl MmapInner {
         }
 
         unsafe {
-            let mapping = CreateFileMappingW(handle, ptr::null_mut(), protect, 0, 0, ptr::null());
-            if mapping.is_null() {
+            let mapping = CreateFileMappingW(
+                handle as HANDLE,
+                ptr::null_mut(),
+                protect,
+                0,
+                0,
+                ptr::null(),
+            );
+            if mapping == 0 {
                 return Err(io::Error::last_os_error());
             }
 
             let ptr = MapViewOfFile(
                 mapping,
                 access,
-                (aligned_offset >> 16 >> 16) as DWORD,
-                (aligned_offset & 0xffffffff) as DWORD,
-                aligned_len as SIZE_T,
+                (aligned_offset >> 16 >> 16) as u32,
+                (aligned_offset & 0xffffffff) as u32,
+                aligned_len,
             );
             CloseHandle(mapping);
-            if ptr.is_null() {
+            if ptr.Value.is_null() {
                 return Err(io::Error::last_os_error());
             }
 
-            let mut new_handle = 0 as RawHandle;
+            let mut new_handle = MaybeUninit::zeroed();
             let cur_proc = GetCurrentProcess();
             let ok = DuplicateHandle(
                 cur_proc,
-                handle,
+                handle as HANDLE,
                 cur_proc,
-                &mut new_handle,
+                new_handle.as_mut_ptr(),
                 0,
                 0,
                 DUPLICATE_SAME_ACCESS,
@@ -214,9 +114,9 @@ impl MmapInner {
             }
 
             Ok(MmapInner {
-                handle: Some(new_handle),
-                ptr: ptr.offset(alignment as isize),
-                len: len as usize,
+                handle: Some(new_handle.assume_init()),
+                ptr: ptr.Value.offset(alignment as isize),
+                len,
                 copy,
             })
         }
@@ -361,28 +261,28 @@ impl MmapInner {
                 INVALID_HANDLE_VALUE,
                 ptr::null_mut(),
                 PAGE_EXECUTE_READWRITE,
-                (mapped_len >> 16 >> 16) as DWORD,
-                (mapped_len & 0xffffffff) as DWORD,
+                (mapped_len >> 16 >> 16) as u32,
+                (mapped_len & 0xffffffff) as u32,
                 ptr::null(),
             );
-            if mapping.is_null() {
+            if mapping == 0 {
                 return Err(io::Error::last_os_error());
             }
             let access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
-            let ptr = MapViewOfFile(mapping, access, 0, 0, mapped_len as SIZE_T);
+            let ptr = MapViewOfFile(mapping, access, 0, 0, mapped_len);
             CloseHandle(mapping);
 
-            if ptr.is_null() {
+            if ptr.Value.is_null() {
                 return Err(io::Error::last_os_error());
             }
 
-            let mut old = 0;
-            let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
+            let mut old = MaybeUninit::uninit();
+            let result = VirtualProtect(ptr.Value, mapped_len, PAGE_READWRITE, old.as_mut_ptr());
             if result != 0 {
                 Ok(MmapInner {
                     handle: None,
-                    ptr,
-                    len: len as usize,
+                    ptr: ptr.Value,
+                    len,
                     copy: false,
                 })
             } else {
@@ -408,7 +308,7 @@ impl MmapInner {
         if self.ptr == empty_slice_ptr() {
             return Ok(());
         }
-        let result = unsafe { FlushViewOfFile(self.ptr.add(offset), len as SIZE_T) };
+        let result = unsafe { FlushViewOfFile(self.ptr.add(offset), len) };
         if result != 0 {
             Ok(())
         } else {
@@ -416,17 +316,17 @@ impl MmapInner {
         }
     }
 
-    fn virtual_protect(&mut self, protect: DWORD) -> io::Result<()> {
+    fn virtual_protect(&mut self, protect: PAGE_PROTECTION_FLAGS) -> io::Result<()> {
         if self.ptr == empty_slice_ptr() {
             return Ok(());
         }
         unsafe {
             let alignment = self.ptr as usize % allocation_granularity();
             let ptr = self.ptr.offset(-(alignment as isize));
-            let aligned_len = self.len as SIZE_T + alignment as SIZE_T;
+            let aligned_len = self.len + alignment;
 
-            let mut old = 0;
-            let result = VirtualProtect(ptr, aligned_len, protect, &mut old);
+            let mut old = MaybeUninit::uninit();
+            let result = VirtualProtect(ptr, aligned_len, protect, old.as_mut_ptr());
 
             if result != 0 {
                 Ok(())
@@ -483,7 +383,7 @@ impl Drop for MmapInner {
         // in Drop impls, c.f. https://github.com/rust-lang/lang-team/issues/97
         unsafe {
             let ptr = self.ptr.offset(-(alignment as isize));
-            UnmapViewOfFile(ptr);
+            UnmapViewOfFile(MEMORY_MAPPED_VIEW_ADDRESS { Value: ptr });
 
             if let Some(handle) = self.handle {
                 CloseHandle(handle);
@@ -495,22 +395,29 @@ impl Drop for MmapInner {
 unsafe impl Sync for MmapInner {}
 unsafe impl Send for MmapInner {}
 
-fn protection_supported(handle: RawHandle, protection: DWORD) -> bool {
+fn protection_supported(handle: RawHandle, protection: PAGE_PROTECTION_FLAGS) -> bool {
     unsafe {
-        let mapping = CreateFileMappingW(handle, ptr::null_mut(), protection, 0, 0, ptr::null());
+        let mapping = CreateFileMappingW(
+            handle as HANDLE,
+            ptr::null_mut(),
+            protection,
+            0,
+            0,
+            ptr::null(),
+        ) as RawHandle;
         if mapping.is_null() {
             return false;
         }
-        CloseHandle(mapping);
+        CloseHandle(mapping as HANDLE);
         true
     }
 }
 
 fn allocation_granularity() -> usize {
     unsafe {
-        let mut info = mem::zeroed();
-        GetSystemInfo(&mut info);
-        info.dwAllocationGranularity as usize
+        let mut info = MaybeUninit::zeroed();
+        GetSystemInfo(info.as_mut_ptr());
+        info.assume_init().dwAllocationGranularity as usize
     }
 }
 
