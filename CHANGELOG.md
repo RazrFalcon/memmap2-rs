@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Added `MmapOptions::no_reserve` method to support not to reserve swap space for this mapping. Linux only.
 
 ## [0.9.4] - 2024-01-25
 ### Changed

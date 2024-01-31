@@ -21,6 +21,12 @@ const MAP_STACK: libc::c_int = libc::MAP_STACK;
 const MAP_STACK: libc::c_int = 0;
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
+const MAP_NORESERVE: libc::c_int = libc::MAP_NORESERVE;
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+const MAP_NORESERVE: libc::c_int = 0;
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
 const MAP_POPULATE: libc::c_int = libc::MAP_POPULATE;
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
@@ -283,9 +289,11 @@ impl MmapInner {
         len: usize,
         stack: bool,
         populate: bool,
+        no_reserve: bool,
         huge: Option<u8>,
     ) -> io::Result<MmapInner> {
         let stack = if stack { MAP_STACK } else { 0 };
+        let no_reserve = if no_reserve { MAP_NORESERVE } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
         let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
         let offset = huge
@@ -294,7 +302,7 @@ impl MmapInner {
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE | libc::MAP_ANON | stack | populate | hugetlb,
+            libc::MAP_PRIVATE | libc::MAP_ANON | stack | no_reserve | populate | hugetlb,
             -1,
             offset,
         )

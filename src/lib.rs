@@ -143,6 +143,7 @@ pub struct MmapOptions {
     huge: Option<u8>,
     stack: bool,
     populate: bool,
+    no_reserve: bool,
 }
 
 impl MmapOptions {
@@ -279,6 +280,27 @@ impl MmapOptions {
     /// ```
     pub fn stack(&mut self) -> &mut Self {
         self.stack = true;
+        self
+    }
+
+    /// Configures the anonymous memory map not to reserve swap space for this mapping.
+    ///
+    /// This option corresponds to the `MAP_NORESERVE` flag on Linux. It has no effect on Windows.
+    ///
+    /// This option has no effect on file-backed memory maps.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use memmap2::MmapOptions;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let no_reserve = MmapOptions::new().no_reserve().len(4096*1024*1024).map_anon();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn no_reserve(&mut self) -> &mut Self {
+        self.no_reserve = true;
         self
     }
 
@@ -509,7 +531,7 @@ impl MmapOptions {
             ));
         }
 
-        MmapInner::map_anon(len, self.stack, self.populate, self.huge)
+        MmapInner::map_anon(len, self.stack, self.populate, self.no_reserve, self.huge)
             .map(|inner| MmapMut { inner })
     }
 
@@ -1534,6 +1556,25 @@ mod test {
     #[test]
     fn map_anon_zero_len() {
         assert!(MmapOptions::new().map_anon().unwrap().is_empty())
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn map_anon_no_reserve() {
+        let expected_len = 1024 * 1024 * 1024 * 1024;
+        let mmap: MmapMut = MmapOptions::new()
+            .no_reserve()
+            .len(expected_len)
+            .map_anon()
+            .unwrap();
+        let len = mmap.len();
+        assert_eq!(expected_len, len);
+
+        // check that the last page of mmap is empty
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+
+        let zeros = vec![0; page_size];
+        assert_eq!(&zeros[..], &mmap[expected_len - zeros.len()..]);
     }
 
     #[test]
