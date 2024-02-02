@@ -55,12 +55,14 @@ use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::isize;
 use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::ops::{
+    Bound, Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive,
+};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
-use std::slice;
 
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
@@ -687,6 +689,11 @@ impl Mmap {
         Ok(MmapMut { inner: self.inner })
     }
 
+    /// Returns the number of elements in the slice.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
     /// Allocates memory charges (from the overall size of memory and the paging files on disk)
     /// for the specified reserved memory pages.
     ///
@@ -796,7 +803,7 @@ impl Deref for Mmap {
 
     #[inline]
     fn deref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.inner.ptr(), self.inner.len()) }
+        self.inner.commit(0, self.inner.len()).unwrap()
     }
 }
 
@@ -1149,6 +1156,11 @@ impl MmapMut {
         MmapOptions::new().len(length).map_anon()
     }
 
+    /// Returns the number of elements in the slice.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
     /// Flushes outstanding memory map modifications to disk.
     ///
     /// When this method returns with a non-error result, all outstanding changes to a file-backed
@@ -1383,14 +1395,14 @@ impl Deref for MmapMut {
 
     #[inline]
     fn deref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.inner.ptr(), self.inner.len()) }
+        self.inner.commit(0, self.inner.len()).unwrap()
     }
 }
 
 impl DerefMut for MmapMut {
     #[inline]
     fn deref_mut(&mut self) -> &mut [u8] {
-        unsafe { slice::from_raw_parts_mut(self.inner.mut_ptr(), self.inner.len()) }
+        self.inner.commit_mut(0, self.inner.len()).unwrap()
     }
 }
 
@@ -1459,6 +1471,201 @@ impl RemapOptions {
         } else {
             0
         }
+    }
+}
+
+pub trait Reserved {
+    fn len(&self) -> usize;
+
+    fn commit(&self, offset: usize, len: usize) -> Result<&[u8]>;
+
+    fn commit_mut(&mut self, offset: usize, len: usize) -> Result<&mut [u8]>;
+}
+
+impl Reserved for Mmap {
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn commit(&self, offset: usize, len: usize) -> Result<&[u8]> {
+        self.inner.commit(offset, len)
+    }
+
+    fn commit_mut(&mut self, offset: usize, len: usize) -> Result<&mut [u8]> {
+        self.inner.commit_mut(offset, len)
+    }
+}
+
+impl Reserved for MmapMut {
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn commit(&self, offset: usize, len: usize) -> Result<&[u8]> {
+        self.inner.commit(offset, len)
+    }
+
+    fn commit_mut(&mut self, offset: usize, len: usize) -> Result<&mut [u8]> {
+        self.inner.commit_mut(offset, len)
+    }
+}
+
+pub trait MmapIndex<T> {
+    type Output: ?Sized;
+
+    fn commit(self, mm: &T) -> Result<&Self::Output>;
+
+    fn commit_mut(self, mm: &mut T) -> Result<&mut Self::Output>;
+}
+
+impl<M: Reserved> MmapIndex<M> for usize {
+    type Output = u8;
+
+    fn commit(self, mm: &M) -> Result<&Self::Output> {
+        mm.commit(self, 1).map(|s| s.first().unwrap())
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut Self::Output> {
+        mm.commit_mut(self, 1).map(|s| s.first_mut().unwrap())
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for (Bound<usize>, Bound<usize>) {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        let (start, end) = self;
+        let start = match start {
+            Bound::Included(start) => start - 1,
+            Bound::Excluded(start) => start,
+            Bound::Unbounded => 0,
+        };
+        let end = match end {
+            Bound::Included(end) => end + 1,
+            Bound::Excluded(end) => end,
+            Bound::Unbounded => mm.len(),
+        };
+        mm.commit(start, end - start)
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        let (start, end) = self;
+        let start = match start {
+            Bound::Included(start) => start - 1,
+            Bound::Excluded(start) => start,
+            Bound::Unbounded => 0,
+        };
+        let end = match end {
+            Bound::Included(end) => end + 1,
+            Bound::Excluded(end) => end,
+            Bound::Unbounded => mm.len(),
+        };
+        mm.commit_mut(start, end - start)
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for Range<usize> {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        mm.commit(self.start, self.len())
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        mm.commit_mut(self.start, self.len())
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for RangeFrom<usize> {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        mm.commit(self.start, mm.len() - self.start)
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        mm.commit_mut(self.start, mm.len() - self.start)
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for RangeTo<usize> {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        mm.commit(0, self.end)
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        mm.commit_mut(0, self.end)
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for RangeFull {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        mm.commit(0, mm.len())
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        mm.commit_mut(0, mm.len())
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for RangeInclusive<usize> {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        let (start, end) = self.into_inner();
+        mm.commit(start, end - start + 1)
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        let (start, end) = self.into_inner();
+        mm.commit_mut(start, end - start + 1)
+    }
+}
+
+impl<M: Reserved> MmapIndex<M> for RangeToInclusive<usize> {
+    type Output = [u8];
+
+    fn commit(self, mm: &M) -> Result<&[u8]> {
+        mm.commit(0, self.end + 1)
+    }
+
+    fn commit_mut(self, mm: &mut M) -> Result<&mut [u8]> {
+        mm.commit_mut(0, self.end + 1)
+    }
+}
+
+impl<I> Index<I> for Mmap
+where
+    I: MmapIndex<Mmap>,
+{
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &I::Output {
+        index.commit(self).unwrap()
+    }
+}
+
+impl<I> Index<I> for MmapMut
+where
+    I: MmapIndex<MmapMut>,
+{
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &I::Output {
+        index.commit(self).unwrap()
+    }
+}
+
+impl<I> IndexMut<I> for MmapMut
+where
+    I: MmapIndex<MmapMut>,
+{
+    fn index_mut(&mut self, index: I) -> &mut I::Output {
+        index.commit_mut(self).unwrap()
     }
 }
 
@@ -1592,10 +1799,11 @@ mod test {
     }
 
     #[test]
-    #[cfg(windows)]
     fn map_anon_no_reserve() {
-        let expected_len = 1024 * 1024 * 1024 * 1024;
-        let mmap: MmapMut = MmapOptions::new()
+        use std::cmp::min;
+
+        let expected_len = min(usize::MAX / 4, 1024 * 1024 * 1024 * 1024);
+        let mut mmap: MmapMut = MmapOptions::new()
             .no_reserve()
             .len(expected_len)
             .map_anon()
@@ -1604,38 +1812,21 @@ mod test {
         assert_eq!(expected_len, len);
 
         // check that the last page of mmap is empty
-        let page_size = unsafe { super::os::page_size() };
+        let page_size = super::os::page_size();
 
         let zeros = vec![0; page_size];
-        let incr: Vec<u8> = (0..zeros.len()).map(|n| n as u8).collect();
 
-        let view = mmap.commit(expected_len - page_size, page_size).unwrap();
+        // commit and get a view of reserved memory
+        let view = &mut mmap[expected_len - page_size..];
         assert_eq!(&zeros[..], view);
+
+        let incr: Vec<u8> = (0..zeros.len()).map(|n| n as u8).collect();
 
         // write values into the mmap
         view.copy_from_slice(incr.as_slice());
 
         // read values back
         assert_eq!(&incr[..], view);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn map_anon_no_reserve() {
-        let expected_len = 1024 * 1024 * 1024 * 1024;
-        let mmap: MmapMut = MmapOptions::new()
-            .no_reserve()
-            .len(expected_len)
-            .map_anon()
-            .unwrap();
-        let len = mmap.len();
-        assert_eq!(expected_len, len);
-
-        // check that the last page of mmap is empty
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-
-        let zeros = vec![0; page_size];
-        assert_eq!(&zeros[..], &mmap[expected_len - zeros.len()..]);
     }
 
     #[test]
@@ -2071,7 +2262,7 @@ mod test {
     #[test]
     #[cfg(target_os = "linux")]
     fn advise_writes_unsafely() {
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let page_size = super::os::page_size();
 
         let mut mmap = MmapMut::map_anon(page_size).unwrap();
         mmap.as_mut().fill(255);
@@ -2091,7 +2282,7 @@ mod test {
     #[test]
     #[cfg(target_os = "linux")]
     fn advise_writes_unsafely_to_part_of_map() {
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let page_size = super::os::page_size();
 
         let mut mmap = MmapMut::map_anon(2 * page_size).unwrap();
         mmap.as_mut().fill(255);

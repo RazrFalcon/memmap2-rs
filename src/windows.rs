@@ -5,6 +5,7 @@ use std::fs::File;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::os::raw::c_void;
 use std::os::windows::io::{FromRawHandle, RawHandle};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{io, mem, ptr, slice};
 
 type BOOL = i32;
@@ -143,12 +144,26 @@ extern "system" {
     fn GetSystemInfo(lpSystemInfo: LPSYSTEM_INFO);
 }
 
-pub(crate) unsafe fn page_size() -> usize {
-    let mut si = MaybeUninit::zeroed();
+#[allow(dead_code)]
+pub fn page_size() -> usize {
+    static PAGE_SIZE: AtomicUsize = AtomicUsize::new(0);
 
-    super::os::GetSystemInfo(si.as_mut_ptr());
+    match PAGE_SIZE.load(Ordering::Relaxed) {
+        0 => {
+            let mut si = MaybeUninit::zeroed();
 
-    si.assume_init().dwPageSize as usize
+            unsafe {
+                GetSystemInfo(si.as_mut_ptr());
+
+                let page_size = si.assume_init().dwPageSize as usize;
+
+                PAGE_SIZE.store(page_size, Ordering::Relaxed);
+
+                page_size
+            }
+        }
+        page_size => page_size,
+    }
 }
 
 /// Returns a fixed aligned pointer that is valid for `slice::from_raw_parts::<u8>` with `len == 0`.
@@ -164,6 +179,7 @@ pub struct MmapInner {
     ptr: *mut c_void,
     len: usize,
     copy: bool,
+    no_reserve: bool,
 }
 
 impl MmapInner {
@@ -177,6 +193,7 @@ impl MmapInner {
         offset: u64,
         len: usize,
         copy: bool,
+        no_reserve: bool,
     ) -> io::Result<MmapInner> {
         let alignment = offset % allocation_granularity() as u64;
         let aligned_offset = offset - alignment as u64;
@@ -195,6 +212,7 @@ impl MmapInner {
                 ptr: empty_slice_ptr(),
                 len: 0,
                 copy,
+                no_reserve,
             });
         }
 
@@ -237,6 +255,7 @@ impl MmapInner {
                 ptr: ptr.offset(alignment as isize),
                 len: len as usize,
                 copy,
+                no_reserve,
             })
         }
     }
@@ -266,7 +285,7 @@ impl MmapInner {
             (false, false) => PAGE_READONLY,
         };
 
-        let mut inner = MmapInner::new(handle, protection, access, offset, len, false)?;
+        let mut inner = MmapInner::new(handle, protection, access, offset, len, false, false)?;
         if write || exec {
             inner.make_read_only()?;
         }
@@ -288,7 +307,7 @@ impl MmapInner {
             PAGE_EXECUTE_READ
         };
 
-        let mut inner = MmapInner::new(handle, protection, access, offset, len, false)?;
+        let mut inner = MmapInner::new(handle, protection, access, offset, len, false, false)?;
         if write {
             inner.make_exec()?;
         }
@@ -310,7 +329,7 @@ impl MmapInner {
             PAGE_READWRITE
         };
 
-        let mut inner = MmapInner::new(handle, protection, access, offset, len, false)?;
+        let mut inner = MmapInner::new(handle, protection, access, offset, len, false, false)?;
         if exec {
             inner.make_mut()?;
         }
@@ -332,7 +351,7 @@ impl MmapInner {
             PAGE_WRITECOPY
         };
 
-        let mut inner = MmapInner::new(handle, protection, access, offset, len, true)?;
+        let mut inner = MmapInner::new(handle, protection, access, offset, len, true, false)?;
         if exec {
             inner.make_mut()?;
         }
@@ -355,7 +374,7 @@ impl MmapInner {
             PAGE_WRITECOPY
         };
 
-        let mut inner = MmapInner::new(handle, protection, access, offset, len, true)?;
+        let mut inner = MmapInner::new(handle, protection, access, offset, len, true, false)?;
         if write || exec {
             inner.make_read_only()?;
         }
@@ -404,6 +423,7 @@ impl MmapInner {
                     ptr,
                     len: len as usize,
                     copy: false,
+                    no_reserve,
                 })
             } else {
                 let mut old = 0;
@@ -414,6 +434,7 @@ impl MmapInner {
                         ptr,
                         len: len as usize,
                         copy: false,
+                        no_reserve,
                     })
                 } else {
                     Err(io::Error::last_os_error())
@@ -448,34 +469,42 @@ impl MmapInner {
     }
 
     pub fn commit(&self, offset: usize, len: usize) -> io::Result<&[u8]> {
-        let ptr = unsafe {
-            VirtualAlloc(
-                self.ptr.add(offset),
-                len as SIZE_T,
-                MEM_COMMIT,
-                PAGE_READONLY,
-            )
-        };
-        if !ptr.is_null() {
-            Ok(unsafe { slice::from_raw_parts(ptr.cast(), len) })
+        if self.no_reserve {
+            let ptr = unsafe {
+                VirtualAlloc(
+                    self.ptr.add(offset),
+                    len as SIZE_T,
+                    MEM_COMMIT,
+                    PAGE_READONLY,
+                )
+            };
+            if !ptr.is_null() {
+                Ok(unsafe { slice::from_raw_parts(ptr.cast(), len) })
+            } else {
+                Err(io::Error::last_os_error())
+            }
         } else {
-            Err(io::Error::last_os_error())
+            Ok(unsafe { slice::from_raw_parts(self.ptr.add(offset).cast(), len) })
         }
     }
 
     pub fn commit_mut(&self, offset: usize, len: usize) -> io::Result<&mut [u8]> {
-        let ptr = unsafe {
-            VirtualAlloc(
-                self.ptr.add(offset),
-                len as SIZE_T,
-                MEM_COMMIT,
-                PAGE_READWRITE,
-            )
-        };
-        if ptr.is_null() {
-            Err(io::Error::last_os_error())
+        if self.no_reserve {
+            let ptr = unsafe {
+                VirtualAlloc(
+                    self.ptr.add(offset),
+                    len as SIZE_T,
+                    MEM_COMMIT,
+                    PAGE_READWRITE,
+                )
+            };
+            if ptr.is_null() {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(unsafe { slice::from_raw_parts_mut(ptr.cast(), len) })
+            }
         } else {
-            Ok(unsafe { slice::from_raw_parts_mut(ptr.cast(), len) })
+            Ok(unsafe { slice::from_raw_parts_mut(self.ptr.add(offset).cast(), len) })
         }
     }
 
@@ -522,11 +551,6 @@ impl MmapInner {
     #[inline]
     pub fn ptr(&self) -> *const u8 {
         self.ptr as *const u8
-    }
-
-    #[inline]
-    pub fn mut_ptr(&mut self) -> *mut u8 {
-        self.ptr as *mut u8
     }
 
     #[inline]

@@ -4,7 +4,7 @@ use std::fs::File;
 use std::mem::ManuallyDrop;
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{io, ptr};
+use std::{io, ptr, slice};
 
 #[cfg(any(
     all(target_os = "linux", not(target_arch = "mips")),
@@ -366,13 +366,18 @@ impl MmapInner {
     }
 
     #[inline]
-    pub fn mut_ptr(&mut self) -> *mut u8 {
-        self.ptr as *mut u8
+    pub fn len(&self) -> usize {
+        self.len
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
-        self.len
+    pub fn commit(&self, offset: usize, len: usize) -> io::Result<&[u8]> {
+        Ok(unsafe { slice::from_raw_parts(self.ptr.add(offset).cast(), len) })
+    }
+
+    #[inline]
+    pub fn commit_mut(&self, offset: usize, len: usize) -> io::Result<&mut [u8]> {
+        Ok(unsafe { slice::from_raw_parts_mut(self.ptr.add(offset).cast(), len) })
     }
 
     pub fn advise(&self, advice: libc::c_int, offset: usize, len: usize) -> io::Result<()> {
@@ -441,7 +446,7 @@ impl Drop for MmapInner {
 unsafe impl Sync for MmapInner {}
 unsafe impl Send for MmapInner {}
 
-fn page_size() -> usize {
+pub fn page_size() -> usize {
     static PAGE_SIZE: AtomicUsize = AtomicUsize::new(0);
 
     match PAGE_SIZE.load(Ordering::Relaxed) {
