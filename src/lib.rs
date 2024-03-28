@@ -559,6 +559,8 @@ impl MmapOptions {
 ///
 /// `Mmap` is [`Sync`] and [`Send`].
 ///
+/// See [`MmapMut`] for the mutable version.
+///
 /// ## Safety
 ///
 /// All file-backed memory map constructors are marked `unsafe` because of the potential for
@@ -581,8 +583,6 @@ impl MmapOptions {
 /// # Ok(())
 /// # }
 /// ```
-///
-/// See [`MmapMut`] for the mutable version.
 ///
 /// [`map()`]: Mmap::map()
 pub struct Mmap {
@@ -1036,7 +1036,7 @@ impl From<MmapMut> for MmapRaw {
 /// Dereferencing and accessing the bytes of the buffer may result in page faults (e.g. swapping
 /// the mapped pages into physical memory) though the details of this are platform specific.
 ///
-/// `Mmap` is [`Sync`] and [`Send`].
+/// `MmapMut` is [`Sync`] and [`Send`].
 ///
 /// See [`Mmap`] for the immutable version.
 ///
