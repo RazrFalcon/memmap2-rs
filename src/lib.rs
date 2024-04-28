@@ -302,6 +302,8 @@ impl MmapOptions {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// The number 21 corresponds to `MAP_HUGE_2MB`. See mmap(2) for more details.
     pub fn huge(&mut self, page_bits: Option<u8>) -> &mut Self {
         self.huge = Some(page_bits.unwrap_or(0));
         self
