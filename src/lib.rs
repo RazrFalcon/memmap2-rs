@@ -338,6 +338,10 @@ impl MmapOptions {
 
     /// Creates a read-only memory map backed by a file.
     ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapOptions] docs for why this function is unsafe.
+    ///
     /// # Errors
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
@@ -373,6 +377,10 @@ impl MmapOptions {
 
     /// Creates a readable and executable memory map backed by a file.
     ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapOptions] docs for why this function is unsafe.
+    ///
     /// # Errors
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
@@ -385,6 +393,10 @@ impl MmapOptions {
     }
 
     /// Creates a writeable memory map backed by a file.
+    ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapOptions] docs for why this function is unsafe.
     ///
     /// # Errors
     ///
@@ -429,6 +441,10 @@ impl MmapOptions {
     /// Data written to the memory map will not be visible by other processes,
     /// and will not be carried through to the underlying file.
     ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapOptions] docs for why this function is unsafe.
+    ///
     /// # Errors
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
@@ -456,6 +472,10 @@ impl MmapOptions {
     }
 
     /// Creates a copy-on-write read-only memory map backed by a file.
+    ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapOptions] docs for why this function is unsafe.
     ///
     /// # Errors
     ///
@@ -595,6 +615,10 @@ impl Mmap {
     /// Creates a read-only memory map backed by a file.
     ///
     /// This is equivalent to calling `MmapOptions::new().map(file)`.
+    ///
+    /// # Safety
+    ///
+    /// See the [type-level][Mmap] docs for why this function is unsafe.
     ///
     /// # Errors
     ///
@@ -789,6 +813,9 @@ impl fmt::Debug for Mmap {
 ///
 /// This struct never hands out references to its interior, only raw pointers.
 /// This can be helpful when creating shared memory maps between untrusted processes.
+///
+/// For the safety concerns that arise when converting these raw pointers to references,
+/// see the [`Mmap`] safety documentation.
 pub struct MmapRaw {
     inner: MmapInner,
 }
@@ -1057,6 +1084,10 @@ impl MmapMut {
     /// Creates a writeable memory map backed by a file.
     ///
     /// This is equivalent to calling `MmapOptions::new().map_mut(file)`.
+    ///
+    /// # Safety
+    ///
+    /// See the [type-level][MmapMut] docs for why this function is unsafe.
     ///
     /// # Errors
     ///
