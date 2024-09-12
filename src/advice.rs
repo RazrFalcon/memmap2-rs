@@ -382,3 +382,41 @@ pub enum UncheckedAdvice {
 // MADV_KEEPONFORK  (since Linux 4.14)
 // MADV_COLD  (since Linux 5.4)
 // MADV_PAGEOUT  (since Linux 5.4)
+
+#[cfg(target_os = "linux")]
+impl Advice {
+    /// Performs a runtime check if this advice is supported by the kernel.
+    /// Only supported on Linux. See the [`madvise(2)`] man page.
+    ///
+    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
+    pub fn is_supported(self) -> bool {
+        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl UncheckedAdvice {
+    /// Performs a runtime check if this advice is supported by the kernel.
+    /// Only supported on Linux. See the [`madvise(2)`] man page.
+    ///
+    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
+    pub fn is_supported(self) -> bool {
+        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_is_supported() {
+        assert!(Advice::Normal.is_supported());
+        assert!(Advice::Random.is_supported());
+        assert!(Advice::Sequential.is_supported());
+        assert!(Advice::WillNeed.is_supported());
+
+        assert!(UncheckedAdvice::DontNeed.is_supported());
+    }
+}
