@@ -839,7 +839,7 @@ impl MmapRaw {
     /// Avoiding this will not introduce memory safety issues in Rust terms,
     /// but will cause SIGBUS (or equivalent) signal.
     #[inline]
-    pub const fn as_ptr(&self) -> *const u8 {
+    pub fn as_ptr(&self) -> *const u8 {
         self.inner.ptr()
     }
 
@@ -850,7 +850,7 @@ impl MmapRaw {
     /// Avoiding this will not introduce memory safety issues in Rust terms,
     /// but will cause SIGBUS (or equivalent) signal.
     #[inline]
-    pub const fn as_mut_ptr(&self) -> *mut u8 {
+    pub fn as_mut_ptr(&self) -> *mut u8 {
         self.inner.ptr().cast_mut()
     }
 
@@ -858,7 +858,7 @@ impl MmapRaw {
     ///
     /// Note that truncating the file can cause the length to change (and render this value unusable).
     #[inline]
-    pub const fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.len()
     }
 
