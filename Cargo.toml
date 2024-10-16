@@ -32,6 +32,7 @@ must_use_candidate = "allow"
 missing_errors_doc = "allow"
 needless_pass_by_value = "allow"
 use_self = "allow"
+return_self_not_must_use = "allow"
 # potentially deny later
 map_unwrap_or = "allow"
 doc_markdown = "allow"
