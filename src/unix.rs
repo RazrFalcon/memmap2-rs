@@ -351,7 +351,7 @@ impl MmapInner {
     }
 
     #[inline]
-    pub fn ptr(&self) -> *const u8 {
+    pub const fn ptr(&self) -> *const u8 {
         self.ptr as *const u8
     }
 
@@ -361,7 +361,7 @@ impl MmapInner {
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
