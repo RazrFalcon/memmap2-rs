@@ -53,7 +53,6 @@ use std::fmt;
 #[cfg(not(any(unix, windows)))]
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
-use std::isize;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
