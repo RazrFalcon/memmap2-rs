@@ -287,7 +287,7 @@ impl MmapInner {
         let populate = if populate { MAP_POPULATE } else { 0 };
         let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
         let offset = huge
-            .map(|mask| ((mask as u64) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT)
+            .map(|mask| (u64::from(mask) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT)
             .unwrap_or(0);
         MmapInner::new(
             len,
