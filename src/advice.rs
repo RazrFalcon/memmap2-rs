@@ -229,7 +229,7 @@ pub enum Advice {
     /// Indicates that the application would like the wired pages in this address range to be
     /// zeroed out if the address range is deallocated without first unwiring the pages (i.e.
     /// a munmap(2) without a preceding munlock(2) or the application quits).  This is used
-    /// with madvise() system call.
+    /// with `madvise()` system call.
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     ZeroWiredPages = libc::MADV_ZERO_WIRED_PAGES,
 }
