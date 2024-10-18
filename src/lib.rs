@@ -13,6 +13,8 @@
     clippy::return_self_not_must_use,
     clippy::unreadable_literal,
     clippy::upper_case_acronyms,
+    // remove later
+    clippy::legacy_numeric_constants
 )]
 
 //! A cross-platform Rust API for memory mapped buffers.
@@ -70,6 +72,7 @@ use std::fmt;
 #[cfg(not(any(unix, windows)))]
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
+use std::isize;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
@@ -872,7 +875,7 @@ impl MmapRaw {
     /// but will cause SIGBUS (or equivalent) signal.
     #[inline]
     pub fn as_mut_ptr(&self) -> *mut u8 {
-        self.inner.ptr().cast_mut()
+        self.inner.ptr() as _
     }
 
     /// Returns the length in bytes of the memory map.

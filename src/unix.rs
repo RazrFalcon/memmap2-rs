@@ -96,6 +96,8 @@ impl MmapInner {
     }
 
     fn adjust_mmap_params(len: usize, alignment: usize) -> io::Result<(usize, usize)> {
+        use std::isize;
+
         // Rust's slice cannot be larger than isize::MAX.
         // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
         //
@@ -357,7 +359,7 @@ impl MmapInner {
 
     #[inline]
     pub fn mut_ptr(&mut self) -> *mut u8 {
-        self.ptr.cast()
+        self.ptr as *mut u8
     }
 
     #[inline]
