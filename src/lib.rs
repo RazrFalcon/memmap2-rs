@@ -417,7 +417,7 @@ impl MmapOptions {
     /// # let tempdir = tempfile::tempdir()?;
     /// let path: PathBuf = /* path to file */
     /// #   tempdir.path().join("map_mut");
-    /// let file = OpenOptions::new().read(true).write(true).create(true).open(&path)?;
+    /// let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
     /// file.set_len(13)?;
     ///
     /// let mut mmap = unsafe {
@@ -675,6 +675,7 @@ impl Mmap {
     /// #                      .read(true)
     /// #                      .write(true)
     /// #                      .create(true)
+    /// #                      .truncate(true)
     /// #                      .open(tempdir.path()
     /// #                      .join("make_mut"))?;
     /// # file.set_len(128)?;
@@ -885,7 +886,7 @@ impl MmapRaw {
     /// let tempdir = tempfile::tempdir()?;
     /// let path: PathBuf = /* path to file */
     /// #   tempdir.path().join("flush");
-    /// let file = OpenOptions::new().read(true).write(true).create(true).open(&path)?;
+    /// let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
     /// file.set_len(128)?;
     ///
     /// let mut mmap = unsafe { MmapRaw::map_raw(&file)? };
@@ -1112,6 +1113,7 @@ impl MmapMut {
     ///                        .read(true)
     ///                        .write(true)
     ///                        .create(true)
+    ///                        .truncate(true)  
     ///                        .open(&path)?;
     /// file.set_len(13)?;
     ///
@@ -1159,7 +1161,7 @@ impl MmapMut {
     /// # let tempdir = tempfile::tempdir()?;
     /// let path: PathBuf = /* path to file */
     /// #   tempdir.path().join("flush");
-    /// let file = OpenOptions::new().read(true).write(true).create(true).open(&path)?;
+    /// let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
     /// file.set_len(128)?;
     ///
     /// let mut mmap = unsafe { MmapMut::map_mut(&file)? };
@@ -1468,6 +1470,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
 
@@ -1501,6 +1504,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
 
@@ -1533,6 +1537,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         let mmap = unsafe { Mmap::map(&file).unwrap() };
@@ -1588,6 +1593,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         file.set_len(128).unwrap();
@@ -1612,6 +1618,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         file.set_len(128).unwrap();
@@ -1638,6 +1645,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         file.set_len(128).unwrap();
@@ -1674,6 +1682,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         file.set_len(128).unwrap();
@@ -1699,6 +1708,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
 
@@ -1786,6 +1796,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(tempdir.path().join("jit_x86"))
             .expect("open");
 
@@ -1806,6 +1817,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .expect("open");
         file.set_len(256_u64).expect("set_len");
@@ -1852,6 +1864,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .expect("open");
         file.set_len(256_u64).expect("set_len");
@@ -1906,6 +1919,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .expect("open");
         file.write_all(b"abc123").unwrap();
@@ -1960,6 +1974,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
 
@@ -2066,6 +2081,7 @@ mod test {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .unwrap();
         file.set_len(128).unwrap();
