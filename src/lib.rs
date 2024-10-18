@@ -228,36 +228,39 @@ impl MmapOptions {
 
     /// Returns the configured length, or the length of the provided file.
     fn get_len<T: MmapAsRawDesc>(&self, file: &T) -> Result<usize> {
-        self.len.map(Ok).unwrap_or_else(|| {
-            let desc = file.as_raw_desc();
-            let file_len = file_len(desc.0)?;
+        self.len.map_or_else(
+            || {
+                let desc = file.as_raw_desc();
+                let file_len = file_len(desc.0)?;
 
-            if file_len < self.offset {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "memory map offset is larger than length",
-                ));
-            }
-            let len = file_len - self.offset;
+                if file_len < self.offset {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "memory map offset is larger than length",
+                    ));
+                }
+                let len = file_len - self.offset;
 
-            // Rust's slice cannot be larger than isize::MAX.
-            // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
-            //
-            // This is not a problem on 64-bit targets, but on 32-bit one
-            // having a file or an anonymous mapping larger than 2GB is quite normal
-            // and we have to prevent it.
-            //
-            // The code below is essentially the same as in Rust's std:
-            // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
-            if mem::size_of::<usize>() < 8 && len > isize::MAX as u64 {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "memory map length overflows isize",
-                ));
-            }
+                // Rust's slice cannot be larger than isize::MAX.
+                // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
+                //
+                // This is not a problem on 64-bit targets, but on 32-bit one
+                // having a file or an anonymous mapping larger than 2GB is quite normal
+                // and we have to prevent it.
+                //
+                // The code below is essentially the same as in Rust's std:
+                // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
+                if mem::size_of::<usize>() < 8 && len > isize::MAX as u64 {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "memory map length overflows isize",
+                    ));
+                }
 
-            Ok(len as usize)
-        })
+                Ok(len as usize)
+            },
+            Ok,
+        )
     }
 
     /// Configures the anonymous memory map to be suitable for a process or thread stack.

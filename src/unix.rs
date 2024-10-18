@@ -286,9 +286,9 @@ impl MmapInner {
         let stack = if stack { MAP_STACK } else { 0 };
         let populate = if populate { MAP_POPULATE } else { 0 };
         let hugetlb = if huge.is_some() { MAP_HUGETLB } else { 0 };
-        let offset = huge
-            .map(|mask| (u64::from(mask) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT)
-            .unwrap_or(0);
+        let offset = huge.map_or(0, |mask| {
+            (u64::from(mask) & (MAP_HUGE_MASK as u64)) << MAP_HUGE_SHIFT
+        });
         MmapInner::new(
             len,
             libc::PROT_READ | libc::PROT_WRITE,
