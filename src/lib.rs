@@ -2132,8 +2132,8 @@ mod test {
 
         unsafe {
             mmap.remap(final_len, RemapOptions::new().may_move(true))
-                .unwrap()
-        };
+                .unwrap();
+        }
 
         // The size should have been updated
         assert_eq!(mmap.len(), final_len);
@@ -2214,8 +2214,8 @@ mod test {
 
         unsafe {
             mmap.remap(final_len, RemapOptions::new().may_move(true))
-                .unwrap()
-        };
+                .unwrap();
+        }
 
         // The size should have been updated
         assert_eq!(mmap.len(), final_len);
