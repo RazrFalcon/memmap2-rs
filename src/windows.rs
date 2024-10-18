@@ -137,7 +137,7 @@ extern "system" {
 /// This aligns the pointer to `allocation_granularity()` or 1 if unknown.
 fn empty_slice_ptr() -> *mut c_void {
     let align = allocation_granularity().max(1);
-    unsafe { mem::transmute(align) }
+    unsafe { align as *mut c_void }
 }
 
 pub struct MmapInner {
