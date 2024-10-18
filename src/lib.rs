@@ -1752,14 +1752,13 @@ mod test {
 
     #[test]
     fn sync_send() {
-        let mmap = MmapMut::map_anon(129).unwrap();
-
         fn is_sync_send<T>(_val: T)
         where
             T: Sync + Send,
         {
         }
 
+        let mmap = MmapMut::map_anon(129).unwrap();
         is_sync_send(mmap);
     }
 
