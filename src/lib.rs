@@ -1570,7 +1570,7 @@ mod test {
 
     #[test]
     fn map_anon_zero_len() {
-        assert!(MmapOptions::new().map_anon().unwrap().is_empty())
+        assert!(MmapOptions::new().map_anon().unwrap().is_empty());
     }
 
     #[test]
