@@ -77,6 +77,7 @@ struct SYSTEM_INFO {
     wProcessorRevision: WORD,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct FILETIME {
