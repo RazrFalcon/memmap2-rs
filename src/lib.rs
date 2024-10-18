@@ -1,3 +1,20 @@
+#![deny(clippy::all, clippy::pedantic)]
+#![allow(
+    // pedantic exceptions
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::explicit_deref_methods,
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::return_self_not_must_use,
+    clippy::unreadable_literal,
+    clippy::upper_case_acronyms,
+)]
+
 //! A cross-platform Rust API for memory mapped buffers.
 //!
 //! The core functionality is provided by either [`Mmap`] or [`MmapMut`],
