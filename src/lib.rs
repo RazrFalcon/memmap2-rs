@@ -875,7 +875,7 @@ impl MmapRaw {
     /// but will cause SIGBUS (or equivalent) signal.
     #[inline]
     pub fn as_mut_ptr(&self) -> *mut u8 {
-        self.inner.ptr() as _
+        self.inner.ptr() as *mut u8
     }
 
     /// Returns the length in bytes of the memory map.
