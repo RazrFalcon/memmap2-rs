@@ -78,6 +78,23 @@ pub enum Advice {
     #[cfg(target_os = "linux")]
     Unmergeable = libc::MADV_UNMERGEABLE,
 
+    /// ** MADV_SOFT_OFFLINE** - Linux only (since Linux 2.6.33)
+    ///
+    /// Soft offline the pages in the range specified by addr and
+    /// length.  The memory of each page in the specified range is
+    /// preserved (i.e., when next accessed, the same content will
+    /// be visible, but in a new physical page frame), and the
+    /// original page is offlined (i.e., no longer used, and taken
+    /// out of normal memory management).  The effect of the
+    /// MADV_SOFT_OFFLINE operation is invisible to (i.e., does
+    /// not change the semantics of) the calling process.
+    ///
+    /// This feature is intended for testing of memory error-
+    /// handling code; it is available only if the kernel was
+    /// configured with CONFIG_MEMORY_FAILURE.
+    #[cfg(target_os = "linux")]
+    SoftOffline = libc::MADV_SOFT_OFFLINE,
+
     /// **MADV_HUGEPAGE** - Linux only (since Linux 2.6.38)
     ///
     /// Enable Transparent Huge Pages (THP) for pages in the range
@@ -124,8 +141,63 @@ pub enum Advice {
     #[cfg(target_os = "linux")]
     NoHugePage = libc::MADV_NOHUGEPAGE,
 
-    /// **MADV_DONTDUMP** - Linux only (since Linux 3.4)
+    /// **MADV_COLLAPSE** - Linux only (since Linux 6.1)
+    /// Perform a best-effort synchronous collapse of the native
+    /// pages mapped by the memory range into Transparent Huge
+    /// Pages (THPs). MADV_COLLAPSE operates on the current state
+    /// of memory of the calling process and makes no persistent
+    /// changes or guarantees on how pages will be mapped,
+    /// constructed, or faulted in the future.
     ///
+    /// MADV_COLLAPSE supports private anonymous pages (see
+    /// mmap(2)), shmem pages, and file-backed pages. See
+    /// MADV_HUGEPAGE for general information on memory
+    /// requirements for THP. If the range provided spans
+    /// multiple VMAs, the semantics of the collapse over each VMA
+    /// is independent from the others. If collapse of a given
+    /// huge page-aligned/sized region fails, the operation may
+    /// continue to attempt collapsing the remainder of the
+    /// specified memory. MADV_COLLAPSE will automatically clamp
+    /// the provided range to be hugepage-aligned.
+    ///
+    /// All non-resident pages covered by the range will first be
+    /// swapped/faulted-in, before being copied onto a freshly
+    /// allocated hugepage. If the native pages compose the same
+    /// PTE-mapped hugepage, and are suitably aligned, allocation
+    /// of a new hugepage may be elided and collapse may happen
+    /// in-place. Unmapped pages will have their data directly
+    /// initialized to 0 in the new hugepage. However, for every
+    /// eligible hugepage-aligned/sized region to be collapsed, at
+    /// least one page must currently be backed by physical
+    /// memory.
+    ///
+    /// MADV_COLLAPSE is independent of any sysfs (see sysfs(5))
+    /// setting under /sys/kernel/mm/transparent_hugepage, both in
+    /// terms of determining THP eligibility, and allocation
+    /// semantics. See Linux kernel source file
+    /// Documentation/admin-guide/mm/transhuge.rst for more
+    /// information. MADV_COLLAPSE also ignores huge= tmpfs mount
+    /// when operating on tmpfs files. Allocation for the new
+    /// hugepage may enter direct reclaim and/or compaction,
+    /// regardless of VMA flags (though VM_NOHUGEPAGE is still
+    /// respected).
+    ///  
+    /// When the system has multiple NUMA nodes, the hugepage will
+    /// be allocated from the node providing the most native
+    /// pages.
+    ///
+    /// If all hugepage-sized/aligned regions covered by the
+    /// provided range were either successfully collapsed, or were
+    /// already PMD-mapped THPs, this operation will be deemed
+    /// successful. Note that this doesn't guarantee anything
+    /// about other possible mappings of the memory. In the event
+    /// multiple hugepage-aligned/sized areas fail to collapse,
+    /// only the most-recently–failed code will be set in errno.
+    #[cfg(target_os = "linux")]
+    Collapse = libc::MADV_COLLAPSE,
+
+    //// **MADV_DONTDUMP** - Linux only (since Linux 3.4)
+    ////
     /// Exclude from a core dump those pages in the range
     /// specified by addr and length.  This is useful in
     /// applications that have large areas of memory that are
@@ -141,6 +213,50 @@ pub enum Advice {
     /// Undo the effect of an earlier MADV_DONTDUMP.
     #[cfg(target_os = "linux")]
     DoDump = libc::MADV_DODUMP,
+
+    /// **MADV_WIPEONFORK** - Linux (since Linux 4.14)
+    ///
+    /// Present the child process with zero-filled memory in this
+    /// range after a fork. This is useful in forking servers
+    /// in order to ensure that sensitive per-process data (for
+    /// example, PRNG seeds, cryptographic secrets, and so on) is
+    /// not handed to child processes.
+    ///
+    /// The MADV_WIPEONFORK operation can be applied only to
+    /// private anonymous pages.
+    ///
+    /// Within the child created by fork, the MADV_WIPEONFORK
+    /// setting remains in place on the specified address range.
+    /// This setting is cleared during execve.
+    #[cfg(target_os = "linux")]
+    WipeOnFork = libc::MADV_WIPEONFORK,
+
+    /// **MADV_KEEPONFORK** - Linux (since Linux 4.14)
+    ///
+    /// Undo the effect of an earlier MADV_WIPEONFORK.
+    #[cfg(target_os = "linux")]
+    KeepOnFork = libc::MADV_KEEPONFORK,
+
+    /// **MADV_COLD** - Linux (since Linux 5.4)
+    ///
+    /// Deactivate a given range of pages. This will make the
+    /// pages a more probable reclaim target should there be a
+    /// memory pressure. This is a nondestructive operation. The
+    /// advice might be ignored for some pages in the range when
+    /// it is not applicable.
+    #[cfg(target_os = "linux")]
+    Cold = libc::MADV_COLD,
+
+    /// **MADV_PAGEOUT** - Linux (since Linux 5.4)
+    ///
+    /// Reclaim a given range of pages. This is done to free up
+    /// memory occupied by these pages. If a page is anonymous,
+    /// it will be swapped out. If a page is file-backed and
+    /// dirty, it will be written back to the backing storage.
+    /// The advice might be ignored for some pages in the range
+    /// when it is not applicable.
+    #[cfg(target_os = "linux")]
+    Pageout = libc::MADV_PAGEOUT,
 
     /// **MADV_HWPOISON** - Linux only (since Linux 2.6.32)
     ///
@@ -375,13 +491,6 @@ pub enum UncheckedAdvice {
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     FreeReuse = libc::MADV_FREE_REUSE,
 }
-
-// Future expansion:
-// MADV_SOFT_OFFLINE  (since Linux 2.6.33)
-// MADV_WIPEONFORK  (since Linux 4.14)
-// MADV_KEEPONFORK  (since Linux 4.14)
-// MADV_COLD  (since Linux 5.4)
-// MADV_PAGEOUT  (since Linux 5.4)
 
 #[cfg(target_os = "linux")]
 impl Advice {
