@@ -193,7 +193,7 @@ pub enum Advice {
     /// about other possible mappings of the memory. In the event
     /// multiple hugepage-aligned/sized areas fail to collapse,
     /// only the most-recently–failed code will be set in errno.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
     Collapse = libc::MADV_COLLAPSE,
 
     //// **MADV_DONTDUMP** - Linux only (since Linux 3.4)
