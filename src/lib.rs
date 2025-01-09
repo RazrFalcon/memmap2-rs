@@ -303,11 +303,17 @@ impl MmapOptions {
 
     /// Configures the anonymous memory map to be allocated using huge pages.
     ///
-    /// This option corresponds to the `MAP_HUGETLB` flag on Linux. It has no effect on Windows.
+    /// *On Linux* this option corresponds to the `MAP_HUGETLB` flag.
     ///
     /// The size of the requested page can be specified in page bits. If not provided, the system
     /// default is requested. The requested length should be a multiple of this, or the mapping
     /// will fail.
+    ///
+    /// This option has no effect on file-backed memory maps.
+    ///
+    /// *On Windows* any value will work.
+    ///
+    /// The requested length will be will be rounded up to minimum size of a large page.
     ///
     /// This option has no effect on file-backed memory maps.
     ///
