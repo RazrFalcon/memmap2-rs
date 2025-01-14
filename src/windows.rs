@@ -4,7 +4,7 @@
 use std::fs::File;
 use std::mem::ManuallyDrop;
 use std::os::raw::c_void;
-use std::os::windows::io::{FromRawHandle, RawHandle};
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 use std::{io, mem, ptr};
 
 type BOOL = i32;
@@ -141,7 +141,7 @@ fn empty_slice_ptr() -> *mut c_void {
 }
 
 pub struct MmapInner {
-    handle: Option<RawHandle>,
+    handle: Option<OwnedHandle>,
     ptr: *mut c_void,
     len: usize,
     copy: bool,
@@ -212,9 +212,10 @@ impl MmapInner {
                 UnmapViewOfFile(ptr);
                 return Err(io::Error::last_os_error());
             }
+            let handle = Some(OwnedHandle::from_raw_handle(new_handle));
 
             Ok(MmapInner {
-                handle: Some(new_handle),
+                handle,
                 ptr: ptr.offset(alignment as isize),
                 len,
                 copy,
@@ -394,8 +395,8 @@ impl MmapInner {
     pub fn flush(&self, offset: usize, len: usize) -> io::Result<()> {
         self.flush_async(offset, len)?;
 
-        if let Some(handle) = self.handle {
-            let ok = unsafe { FlushFileBuffers(handle) };
+        if let Some(ref handle) = self.handle {
+            let ok = unsafe { FlushFileBuffers(handle.as_raw_handle()) };
             if ok == 0 {
                 return Err(io::Error::last_os_error());
             }
@@ -484,10 +485,6 @@ impl Drop for MmapInner {
         unsafe {
             let ptr = self.ptr.offset(-(alignment as isize));
             UnmapViewOfFile(ptr);
-
-            if let Some(handle) = self.handle {
-                CloseHandle(handle);
-            }
         }
     }
 }
