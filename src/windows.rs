@@ -141,7 +141,7 @@ fn empty_slice_ptr() -> *mut c_void {
 }
 
 pub struct MmapInner {
-    handle: Option<OwnedHandle>,
+    file_handle: Option<OwnedHandle>,
     ptr: *mut c_void,
     len: usize,
     copy: bool,
@@ -172,7 +172,7 @@ impl MmapInner {
             //
             // For such files, don’t create a mapping at all and use a marker pointer instead.
             return Ok(MmapInner {
-                handle: None,
+                file_handle: None,
                 ptr: empty_slice_ptr(),
                 len: 0,
                 copy,
@@ -212,10 +212,10 @@ impl MmapInner {
                 UnmapViewOfFile(ptr);
                 return Err(io::Error::last_os_error());
             }
-            let handle = Some(OwnedHandle::from_raw_handle(new_handle));
+            let file_handle = Some(OwnedHandle::from_raw_handle(new_handle));
 
             Ok(MmapInner {
-                handle,
+                file_handle,
                 ptr: ptr.offset(alignment as isize),
                 len,
                 copy,
@@ -381,7 +381,7 @@ impl MmapInner {
             let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
             if result != 0 {
                 Ok(MmapInner {
-                    handle: None,
+                    file_handle: None,
                     ptr,
                     len,
                     copy: false,
@@ -395,7 +395,7 @@ impl MmapInner {
     pub fn flush(&self, offset: usize, len: usize) -> io::Result<()> {
         self.flush_async(offset, len)?;
 
-        if let Some(ref handle) = self.handle {
+        if let Some(ref handle) = self.file_handle {
             let ok = unsafe { FlushFileBuffers(handle.as_raw_handle()) };
             if ok == 0 {
                 return Err(io::Error::last_os_error());
