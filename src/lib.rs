@@ -85,7 +85,22 @@ pub struct MmapRawDescriptor<'a>(&'a File);
 pub struct MmapRawDescriptor(RawFd);
 
 #[cfg(windows)]
-pub struct MmapRawDescriptor(RawHandle);
+#[derive(Clone)]
+pub(crate) enum Win32Handle {
+    File(RawHandle),
+    FileMapping(RawHandle),
+}
+
+#[cfg(windows)]
+#[derive(Clone)]
+pub struct MmapRawDescriptor(Win32Handle);
+
+#[cfg(windows)]
+impl MmapRawDescriptor {
+    pub fn from_file_mapping(handle: RawHandle) -> Self {
+        Self(Win32Handle::FileMapping(handle))
+    }
+}
 
 pub trait MmapAsRawDesc {
     fn as_raw_desc(&self) -> MmapRawDescriptor;
@@ -116,9 +131,16 @@ where
 }
 
 #[cfg(windows)]
+impl MmapAsRawDesc for MmapRawDescriptor {
+    fn as_raw_desc(&self) -> MmapRawDescriptor {
+        self.clone()
+    }
+}
+
+#[cfg(windows)]
 impl MmapAsRawDesc for RawHandle {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
-        MmapRawDescriptor(*self)
+        MmapRawDescriptor(Win32Handle::File(*self))
     }
 }
 
@@ -128,7 +150,7 @@ where
     T: AsRawHandle,
 {
     fn as_raw_desc(&self) -> MmapRawDescriptor {
-        MmapRawDescriptor(self.as_raw_handle())
+        MmapRawDescriptor(Win32Handle::File(self.as_raw_handle()))
     }
 }
 
@@ -247,8 +269,16 @@ impl MmapOptions {
     fn get_len<T: MmapAsRawDesc>(&self, file: &T) -> Result<usize> {
         self.len.map_or_else(
             || {
-                let desc = file.as_raw_desc();
-                let file_len = file_len(desc.0)?;
+                let desc = file.as_raw_desc().0;
+                #[cfg(windows)]
+                let Win32Handle::File(desc) = desc
+                else {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "len must be provided with file mappings",
+                    ));
+                };
+                let file_len = file_len(desc)?;
 
                 if file_len < self.offset {
                     return Err(Error::new(
