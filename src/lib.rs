@@ -243,6 +243,26 @@ impl MmapOptions {
         self
     }
 
+    fn validate_len(len: u64) -> Result<usize> {
+        // Rust's slice cannot be larger than isize::MAX.
+        // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
+        //
+        // This is not a problem on 64-bit targets, but on 32-bit one
+        // having a file or an anonymous mapping larger than 2GB is quite normal
+        // and we have to prevent it.
+        //
+        // The code below is essentially the same as in Rust's std:
+        // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
+        if len > isize::MAX as u64 {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "memory map length overflows isize",
+            ));
+        }
+
+        Ok(len as usize)
+    }
+
     /// Returns the configured length, or the length of the provided file.
     fn get_len<T: MmapAsRawDesc>(&self, file: &T) -> Result<usize> {
         self.len.map_or_else(
@@ -256,27 +276,10 @@ impl MmapOptions {
                         "memory map offset is larger than length",
                     ));
                 }
-                let len = file_len - self.offset;
 
-                // Rust's slice cannot be larger than isize::MAX.
-                // See https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html
-                //
-                // This is not a problem on 64-bit targets, but on 32-bit one
-                // having a file or an anonymous mapping larger than 2GB is quite normal
-                // and we have to prevent it.
-                //
-                // The code below is essentially the same as in Rust's std:
-                // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
-                if mem::size_of::<usize>() < 8 && len > isize::MAX as u64 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "memory map length overflows isize",
-                    ));
-                }
-
-                Ok(len as usize)
+                Self::validate_len(file_len - self.offset)
             },
-            Ok,
+            |l| Self::validate_len(l as u64),
         )
     }
 
@@ -540,12 +543,7 @@ impl MmapOptions {
         let len = self.len.unwrap_or(0);
 
         // See get_len() for details.
-        if mem::size_of::<usize>() < 8 && len > isize::MAX as usize {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "memory map length overflows isize",
-            ));
-        }
+        let len = Self::validate_len(len as u64)?;
 
         MmapInner::map_anon(len, self.stack, self.populate, self.huge)
             .map(|inner| MmapMut { inner })
@@ -1121,7 +1119,7 @@ impl MmapMut {
     ///                        .read(true)
     ///                        .write(true)
     ///                        .create(true)
-    ///                        .truncate(true)  
+    ///                        .truncate(true)
     ///                        .open(&path)?;
     /// file.set_len(13)?;
     ///
