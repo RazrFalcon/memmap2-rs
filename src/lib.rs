@@ -823,6 +823,13 @@ impl fmt::Debug for Mmap {
     }
 }
 
+impl Drop for Mmap {
+    fn drop(&mut self) {
+        // unmap gets called by MmapInner's drop.
+        // This is just so that Drop shows up in the docs.
+    } 
+}
+
 /// A handle to a raw memory mapped buffer.
 ///
 /// This struct never hands out references to its interior, only raw pointers.
@@ -1046,6 +1053,13 @@ impl fmt::Debug for MmapRaw {
             .field("len", &self.len())
             .finish()
     }
+}
+
+impl Drop for MmapRaw {
+    fn drop(&mut self) {
+        // unmap gets called by MmapInner's drop.
+        // This is just so that Drop shows up in the docs.
+    } 
 }
 
 impl From<Mmap> for MmapRaw {
@@ -1397,6 +1411,13 @@ impl fmt::Debug for MmapMut {
             .field("len", &self.len())
             .finish()
     }
+}
+
+impl Drop for MmapMut {
+    fn drop(&mut self) {
+        // unmap gets called by MmapInner's drop.
+        // This is just so that Drop shows up in the docs.
+    } 
 }
 
 /// Options for [`Mmap::remap`] and [`MmapMut::remap`].
