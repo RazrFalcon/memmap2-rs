@@ -133,8 +133,9 @@ where
 
 /// A memory map builder, providing advanced options and flags for specifying memory map behavior.
 ///
-/// `MmapOptions` can be used to create an anonymous memory map using [`map_anon()`], or a
-/// file-backed memory map using one of [`map()`], [`map_mut()`], [`map_exec()`],
+/// `MmapOptions` can be used to create an anonymous memory map using [`map_anon()`],
+/// named memory map using [`map_named()`] or a file-backed memory map using
+/// one of [`map()`], [`map_mut()`], [`map_exec()`],
 /// [`map_copy()`], or [`map_copy_read_only()`].
 ///
 /// ## Safety
@@ -146,6 +147,7 @@ where
 /// unlinked) files exist but are platform specific and limited.
 ///
 /// [`map_anon()`]: MmapOptions::map_anon()
+/// [`map_named()`]: MmapOptions::map_named()
 /// [`map()`]: MmapOptions::map()
 /// [`map_mut()`]: MmapOptions::map_mut()
 /// [`map_exec()`]: MmapOptions::map_exec()
@@ -546,6 +548,25 @@ impl MmapOptions {
 
         MmapInner::map_anon(len, self.stack, self.populate, self.huge)
             .map(|inner| MmapMut { inner })
+    }
+
+    /// Creates a named memory mapped file, only windows supports names in this way.
+    ///
+    /// The memory map length should be configured using [`MmapOptions::len()`]
+    /// before creating an anonymous memory map, otherwise a zero-length mapping
+    /// will be crated.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the underlying system call fails or
+    /// when `len > isize::MAX`.
+    pub fn map_named(&self, name: &str) -> Result<MmapMut> {
+        let len = self.len.unwrap_or(0);
+
+        // See get_len() for details.
+        let len = Self::validate_len(len as u64)?;
+
+        MmapInner::map_named(name, len).map(|inner| MmapMut { inner })
     }
 
     /// Creates a raw memory map.
@@ -1144,6 +1165,21 @@ impl MmapMut {
         MmapOptions::new().len(length).map_anon()
     }
 
+    /// Creates a named memory map, this only works on windows and panics on linux.
+    ///
+    /// For naming rules, see `lpName` on
+    /// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-createfilemappingw
+    ///
+    /// This is equivalent to calling `MmapOptions::new().len(length).map_named(name)`.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an error when the underlying system call fails or
+    /// when `len > isize::MAX`.
+    pub fn map_named(name: &str, length: usize) -> Result<MmapMut> {
+        MmapOptions::new().len(length).map_named(name)
+    }
+
     /// Flushes outstanding memory map modifications to disk.
     ///
     /// When this method returns with a non-error result, all outstanding changes to a file-backed
@@ -1544,6 +1580,44 @@ mod test {
         let mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
         assert!(mmap.is_empty());
         assert_eq!(mmap.as_ptr().align_offset(mem::size_of::<usize>()), 0);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn map_named() {
+        let expected_len = 128;
+        let mut mmap = MmapMut::map_named("named_map", expected_len).unwrap();
+        let len = mmap.len();
+        assert_eq!(expected_len, len);
+
+        let zeros = vec![0; len];
+        let incr: Vec<u8> = (0..len as u8).collect();
+
+        // check that the mmap is empty
+        assert_eq!(&zeros[..], &mmap[..]);
+
+        // write values into the mmap
+        (&mut mmap[..]).write_all(&incr[..]).unwrap();
+
+        // read values back
+        assert_eq!(&incr[..], &mmap[..]);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn map_named_zero_length() {
+        assert!(MmapOptions::new()
+            .map_named("zero_length_map")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    #[should_panic]
+    fn map_named_on_non_windows() {
+        let expected_len = 128;
+        MmapMut::map_named("named_map", expected_len).unwrap();
     }
 
     #[test]

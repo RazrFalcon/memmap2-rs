@@ -274,6 +274,10 @@ impl MmapInner {
         )
     }
 
+    pub fn map_named(name: &str, len: usize) -> io::Result<MmapInner> {
+        panic!("named non-file-backed memory maps are not supported on linux")
+    }
+
     /// Open an anonymous memory map.
     pub fn map_anon(
         len: usize,
