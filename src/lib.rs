@@ -305,11 +305,17 @@ impl MmapOptions {
 
     /// Configures the anonymous memory map to be allocated using huge pages.
     ///
-    /// This option corresponds to the `MAP_HUGETLB` flag on Linux. It has no effect on Windows.
+    /// *On Linux* this option corresponds to the `MAP_HUGETLB` flag.
     ///
     /// The size of the requested page can be specified in page bits. If not provided, the system
     /// default is requested. The requested length should be a multiple of this, or the mapping
     /// will fail.
+    ///
+    /// This option has no effect on file-backed memory maps.
+    ///
+    /// *On Windows* any value will work.
+    ///
+    /// The requested length will be will be rounded up to minimum size of a large page.
     ///
     /// This option has no effect on file-backed memory maps.
     ///
@@ -1564,6 +1570,50 @@ mod test {
 
         // read values back
         assert_eq!(&incr[..], &mmap[..]);
+    }
+
+    #[test]
+    fn map_anon_huge() {
+        // this test doesn't really differ from map_anon() above and
+        // doesn't really show, that large/huge pages are indeed used
+
+        // using value 21 below corresponding to MAP_HUGE_2MB on unix
+        // on windows any non-zero is fine
+
+        let expected_len = 1 * 1024 * 1024;
+        // NOTE: not sure if intentional, but new() is public and not unsafe
+        let mut mmap = MmapOptions::new()
+            .huge(Some(21))
+            .len(expected_len)
+            .map_anon()
+            .expect("failed to create anonymous map");
+        let len = mmap.len();
+        assert_eq!(expected_len, len);
+
+        let zeros = vec![0; len];
+        // fill data with 'inc eax'
+        // prepend xor eax,eax
+        // append ret
+        let mut data: Vec<u8> = (0..len / 2).flat_map(|_| [0xFF, 0xC0]).collect();
+        data[0] = 0x33;
+        data[len - 2] = 0xC3;
+
+        // check that the mmap is empty
+        assert_eq!(&zeros[..], &mmap[..]);
+
+        // write values into the mmap
+        (&mut mmap[..]).write_all(&data[..]).unwrap();
+
+        // read values back
+        assert_eq!(&data[..], &mmap[..]);
+
+        // on win map_anon() allocates executable space, so let's execute it
+        #[cfg(all(windows, target_arch = "x86_64"))]
+        {
+            let jitfn: extern "C" fn() -> u32 = unsafe { mem::transmute(mmap.as_ptr()) };
+            // every instruction takes two bytes minus initial XOR and final RET
+            assert_eq!(jitfn(), 512 * 1024 - 2);
+        }
     }
 
     #[test]

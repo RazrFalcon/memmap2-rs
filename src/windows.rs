@@ -3,6 +3,7 @@
 
 use std::fs::File;
 use std::mem::ManuallyDrop;
+use std::ops::{Deref, DerefMut};
 use std::os::raw::c_void;
 use std::os::windows::io::{FromRawHandle, RawHandle};
 use std::{io, mem, ptr};
@@ -22,6 +23,9 @@ type PDWORD = *mut DWORD;
 type DWORD_PTR = ULONG_PTR;
 type LPSECURITY_ATTRIBUTES = *mut SECURITY_ATTRIBUTES;
 type LPSYSTEM_INFO = *mut SYSTEM_INFO;
+type LPLUID = *mut LUID;
+type LPCTOKEN_PRIVILEGES = *const TOKEN_PRIVILEGES;
+type LPTOKEN_PRIVILEGES = *mut TOKEN_PRIVILEGES;
 
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 
@@ -49,11 +53,30 @@ const PAGE_EXECUTE_READ: DWORD = 0x20;
 const PAGE_EXECUTE_READWRITE: DWORD = 0x40;
 const PAGE_EXECUTE_WRITECOPY: DWORD = 0x80;
 
+const SEC_COMMIT: DWORD = 0x800_0000;
+const SEC_LARGE_PAGES: DWORD = 0x8000_0000;
+
 const FILE_MAP_WRITE: DWORD = SECTION_MAP_WRITE;
 const FILE_MAP_READ: DWORD = SECTION_MAP_READ;
 const FILE_MAP_ALL_ACCESS: DWORD = SECTION_ALL_ACCESS;
 const FILE_MAP_EXECUTE: DWORD = SECTION_MAP_EXECUTE_EXPLICIT;
 const FILE_MAP_COPY: DWORD = 0x00000001;
+const FILE_MAP_LARGE_PAGES: DWORD = 0x2000_0000;
+
+const TOKEN_ADJUST_PRIVILEGES: DWORD = 0x0020;
+const TOKEN_QUERY: DWORD = 0x0008;
+
+// TOKEN_PRIVILEGE attributes flags https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-token_privileges
+
+const SE_PRIVILEGE_ATTR_ENABLED: DWORD = 0x0000_0002;
+// const SE_PRIVILEGE_ATTR_ENABLED_BY_DEFAULT: DWORD = 0x0000_0001;
+// const SE_PRIVILEGE_ATTR_REMOVED: DWORD = 0x0000_0004;
+// const SE_PRIVILEGE_ATTR_USED_FOR_ACCESS: DWORD = 0x8000_0000;
+
+// alternatively could be defined via utf16string crate
+const SE_PRIVILEGE_LOCK_MEMORY: *const u16 =
+    b"S\0e\0L\0o\0c\0k\0M\0e\0m\0o\0r\0y\0P\0r\0i\0v\0i\0l\0e\0g\0e\0\0\0" as *const _
+        as *const u16;
 
 #[repr(C)]
 struct SECURITY_ATTRIBUTES {
@@ -83,6 +106,29 @@ struct SYSTEM_INFO {
 pub struct FILETIME {
     pub dwLowDateTime: DWORD,
     pub dwHighDateTime: DWORD,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct LUID {
+    pub LowPart: DWORD,
+    pub HighPart: DWORD,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct LUID_AND_ATTRIBUTES {
+    pub Luid: LUID,
+    pub Attributes: DWORD,
+}
+
+#[repr(C)]
+struct TOKEN_PRIVILEGES {
+    PrivilegeCount: DWORD,
+    Privileges: [LUID_AND_ATTRIBUTES; 1],
+    // note: this should be variable length, but given this is used only
+    // localy and only with single LUID_AND_ATTRIBUTES pair,
+    // leaving it as it is
 }
 
 extern "system" {
@@ -131,6 +177,22 @@ extern "system" {
     ) -> BOOL;
 
     fn GetSystemInfo(lpSystemInfo: LPSYSTEM_INFO);
+
+    fn OpenProcessToken(processHandle: HANDLE, desiredAccess: DWORD, tokenHandle: LPHANDLE)
+        -> BOOL;
+
+    fn LookupPrivilegeValueW(lpSystemName: LPCWSTR, lpName: LPCWSTR, lpLuid: LPLUID) -> BOOL;
+
+    fn AdjustTokenPrivileges(
+        tokenHandle: HANDLE,
+        disableAllPrivileges: BOOL,
+        newState: LPCTOKEN_PRIVILEGES,
+        bufferLength: DWORD,
+        previousState: LPTOKEN_PRIVILEGES,
+        returnLength: PDWORD,
+    ) -> BOOL;
+
+    fn GetLargePageMinimum() -> SIZE_T;
 }
 
 /// Returns a fixed aligned pointer that is valid for `slice::from_raw_parts::<u8>` with `len == 0`.
@@ -347,11 +409,45 @@ impl MmapInner {
         len: usize,
         _stack: bool,
         _populate: bool,
-        _huge: Option<u8>,
+        huge: Option<u8>,
     ) -> io::Result<MmapInner> {
         // Ensure a non-zero length for the underlying mapping
         let mapped_len = len.max(1);
         unsafe {
+            let large_page_size = get_large_page_minimum();
+            let large_page_protection_flags = PAGE_EXECUTE_READWRITE | SEC_COMMIT | SEC_LARGE_PAGES;
+            let use_large_page = if huge.is_some()
+                && large_page_size > 1
+                && enable_se_lock_memory_privilege().is_ok()
+            {
+                protection_supported_with_size(
+                    INVALID_HANDLE_VALUE,
+                    large_page_protection_flags,
+                    large_page_size as u64,
+                )
+            } else {
+                false
+            };
+
+            let flProtect = if use_large_page {
+                large_page_protection_flags
+            } else {
+                PAGE_EXECUTE_READWRITE
+            };
+
+            let mapped_len = if use_large_page {
+                // align up to large_page_size multiple
+                mapped_len.saturating_add(large_page_size - 1) / large_page_size * large_page_size
+            } else {
+                mapped_len
+            };
+
+            let large_page_access_flag = if use_large_page {
+                FILE_MAP_LARGE_PAGES
+            } else {
+                0
+            };
+
             // Create a mapping and view with maximum access permissions, then use `VirtualProtect`
             // to set the actual `Protection`. This way, we can set more permissive protection later
             // on.
@@ -360,7 +456,7 @@ impl MmapInner {
             let mapping = CreateFileMappingW(
                 INVALID_HANDLE_VALUE,
                 ptr::null_mut(),
-                PAGE_EXECUTE_READWRITE,
+                flProtect,
                 (mapped_len >> 16 >> 16) as DWORD,
                 (mapped_len & 0xffffffff) as DWORD,
                 ptr::null(),
@@ -368,7 +464,11 @@ impl MmapInner {
             if mapping.is_null() {
                 return Err(io::Error::last_os_error());
             }
-            let access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
+
+            // TODO: in case of huge page should se_lock_memory_privilege be disabled/removed after creating file mapping?
+            // (there's likely no need, but would be nicer / more elegant)
+
+            let access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE | large_page_access_flag;
             let ptr = MapViewOfFile(mapping, access, 0, 0, mapped_len as SIZE_T);
             CloseHandle(mapping);
 
@@ -377,12 +477,27 @@ impl MmapInner {
             }
 
             let mut old = 0;
-            let result = VirtualProtect(ptr, mapped_len as SIZE_T, PAGE_READWRITE, &mut old);
+            let protectFlag = if use_large_page {
+                // it seems that when large page is used, protection passed to VirtualProtect has to match
+                // access passed to MapViewOfFile *exactly*, without narrowing:
+                // FILE_MAP_READ                          | PAGE_READONLY
+                // FILE_MAP_READ + FILE_MAP_WRITE         | PAGE_READWRITE
+                // FILE_MAP_ALL_ACCESS                    | PAGE_READWRITE
+                // FILE_MAP_ALL_ACCESS + FILE_MAP_EXECUTE | PAGE_EXECUTE_READWRITE
+                // FILE_MAP_READ + FILE_MAP_EXECUTE       | PAGE_EXECUTE_READ
+                //
+                // TODO: so in this case maybe it'd be better to just skip VirtualProtect completely?
+                PAGE_EXECUTE_READWRITE
+            } else {
+                PAGE_READWRITE
+            };
+            let result = VirtualProtect(ptr, mapped_len as SIZE_T, protectFlag, &mut old);
+
             if result != 0 {
                 Ok(MmapInner {
                     handle: None,
                     ptr,
-                    len,
+                    len, // TODO: should this be mapped_len in case of huge page
                     copy: false,
                 })
             } else {
@@ -496,8 +611,20 @@ unsafe impl Sync for MmapInner {}
 unsafe impl Send for MmapInner {}
 
 fn protection_supported(handle: RawHandle, protection: DWORD) -> bool {
+    protection_supported_with_size(handle, protection, 0)
+}
+
+fn protection_supported_with_size(handle: RawHandle, protection: DWORD, size: u64) -> bool {
     unsafe {
-        let mapping = CreateFileMappingW(handle, ptr::null_mut(), protection, 0, 0, ptr::null());
+        let mapping = CreateFileMappingW(
+            handle,
+            ptr::null_mut(),
+            protection,
+            (size >> 32) as u32,
+            (size & 0xFFFF_FFFF) as u32,
+            ptr::null(),
+        );
+
         if mapping.is_null() {
             return false;
         }
@@ -520,5 +647,131 @@ pub fn file_len(handle: RawHandle) -> io::Result<u64> {
     unsafe {
         let file = ManuallyDrop::new(File::from_raw_handle(handle));
         Ok(file.metadata()?.len())
+    }
+}
+
+pub struct CloseHandleGuard {
+    handle: HANDLE,
+}
+
+impl Drop for CloseHandleGuard {
+    fn drop(&mut self) {
+        if self.handle != INVALID_HANDLE_VALUE {
+            unsafe {
+                CloseHandle(self.handle);
+            }
+        }
+    }
+}
+
+impl Deref for CloseHandleGuard {
+    type Target = HANDLE;
+
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
+impl DerefMut for CloseHandleGuard {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.handle
+    }
+}
+
+impl CloseHandleGuard {
+    #[must_use]
+    fn new(handle: HANDLE) -> Self {
+        Self { handle }
+    }
+}
+
+fn get_current_process_token() -> io::Result<HANDLE> {
+    unsafe {
+        let cur_proc = GetCurrentProcess();
+        let mut process_token = 0 as RawHandle;
+        let status = OpenProcessToken(
+            cur_proc,
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut process_token,
+        );
+        if status != 0 {
+            Ok(process_token)
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+}
+
+fn get_lock_memory_privilege_luid() -> io::Result<LUID> {
+    let mut luid = LUID {
+        LowPart: 0,
+        HighPart: 0,
+    };
+    let status = unsafe { LookupPrivilegeValueW(ptr::null(), SE_PRIVILEGE_LOCK_MEMORY, &mut luid) };
+    if status != 0 {
+        Ok(luid)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+fn enable_privilege(token: CloseHandleGuard, luid: LUID) -> io::Result<()> {
+    let new_token_privileges = TOKEN_PRIVILEGES {
+        PrivilegeCount: 1,
+        Privileges: [LUID_AND_ATTRIBUTES {
+            Luid: luid,
+            Attributes: SE_PRIVILEGE_ATTR_ENABLED,
+        }],
+    };
+
+    let status = unsafe {
+        AdjustTokenPrivileges(
+            *token,
+            0,
+            &new_token_privileges as *const _,
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+
+    // When called with more than a single privilege change,
+    // AdjustTokenPrivilege might return status != 0
+    // even if it did NOT adjust all privileges.
+    // However, this should only happen when removing previously added
+    // privilege.
+    // The call above adds and only a single privilege,
+    // so the following check should be fine to get the result.
+    if status != 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+pub fn enable_se_lock_memory_privilege() -> io::Result<()> {
+    let token = CloseHandleGuard::new(get_current_process_token()?);
+    let luid = get_lock_memory_privilege_luid()?;
+    enable_privilege(token, luid)?;
+    Ok(())
+}
+
+pub fn get_large_page_minimum() -> usize {
+    let result = unsafe { GetLargePageMinimum() };
+    result
+}
+
+#[cfg(test)]
+mod test {
+    use super::enable_se_lock_memory_privilege;
+
+    #[test]
+    fn enable_se_lock_memory_privilege_is_idempotent() {
+        let initial = enable_se_lock_memory_privilege().unwrap();
+
+        for _ in 0..3 {
+            let subsequent = enable_se_lock_memory_privilege().unwrap();
+            assert_eq!(initial, subsequent);
+        }
     }
 }
