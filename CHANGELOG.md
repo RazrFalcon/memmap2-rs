@@ -4,13 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.9.8] - 2025-08-15
+### Added
+- `MmapOptions::no_reserve_swap`.
+  [@nhtyy](https://github.com/nhtyy)
+
 ## [0.9.7] - 2025-07-13
 ### Fixed
 - Fix incomplete validation of mapping length, which could lead to violation of safety requirements of `slice::from_raw_parts` on 32-bit platforms.
+  [@nabijaczleweli](https://github.com/nabijaczleweli)
 
 ## [0.9.6] - 2025-05-14
 ### Fixed
 - Fix huge page mappings with non-default page-bits.
+  [@Alex1s](https://github.com/Alex1s)
 
 ## [0.9.5] - 2024-09-13
 ### Added
