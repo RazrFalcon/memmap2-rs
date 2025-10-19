@@ -250,16 +250,13 @@ impl MmapOptions {
         // This is not a problem on 64-bit targets, but on 32-bit one
         // having a file or an anonymous mapping larger than 2GB is quite normal
         // and we have to prevent it.
-        //
-        // The code below is essentially the same as in Rust's std:
-        // https://github.com/rust-lang/rust/blob/db78ab70a88a0a5e89031d7ee4eccec835dcdbde/library/alloc/src/raw_vec.rs#L495
-        if len > isize::MAX as u64 {
+        if TryInto::<isize>::try_into(len).is_err() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "memory map length overflows isize",
             ));
         }
-
+        // If an unsigned number (u64) fits in isize, then it fits in usize.
         Ok(len as usize)
     }
 
