@@ -368,7 +368,7 @@ impl MmapOptions {
     /// This option requests that no swap space will be allocated for the memory map,
     /// which can be useful for extremely large maps that are only written to sparsely.
     ///
-    /// This option is currently supported on Linux, Android, macOS, iOS, visionOS, NetBSD, Solaris and Illumos.
+    /// This option is currently supported on Linux, Android, Apple platforms (macOS, iOS, visionOS, etc.), NetBSD, Solaris and Illumos.
     /// On those platforms, this option corresponds to the `MAP_NORESERVE` flag.
     /// On Linux, this option is ignored if [`vm.overcommit_memory`](https://www.kernel.org/doc/Documentation/vm/overcommit-accounting) is set to 2.
     ///

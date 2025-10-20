@@ -45,7 +45,7 @@ const MAP_HUGE_SHIFT: libc::c_int = 0;
 #[cfg(any(
     target_os = "linux",
     target_os = "android",
-    target_os = "macos",
+    target_vendor = "apple",
     target_os = "netbsd",
     target_os = "solaris",
     target_os = "illumos",
@@ -55,7 +55,7 @@ const MAP_NORESERVE: libc::c_int = libc::MAP_NORESERVE;
 #[cfg(not(any(
     target_os = "linux",
     target_os = "android",
-    target_os = "macos",
+    target_vendor = "apple",
     target_os = "netbsd",
     target_os = "solaris",
     target_os = "illumos",
