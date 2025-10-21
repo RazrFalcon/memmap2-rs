@@ -250,7 +250,7 @@ impl MmapOptions {
         // This is not a problem on 64-bit targets, but on 32-bit one
         // having a file or an anonymous mapping larger than 2GB is quite normal
         // and we have to prevent it.
-        if TryInto::<isize>::try_into(len).is_err() {
+        if isize::try_from(len).is_err() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "memory map length overflows isize",
