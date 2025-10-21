@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.9.9] - 2025-10-21
+### Fixed
+- Fix compilation on visionOS (and other apple operating systems).
+  [@sinkingsugar](https://github.com/sinkingsugar)
+- Do not assume `isize::MAX` fits in a `u64`.
+  [@ThomasHabets](https://github.com/ThomasHabets)
+
 ## [0.9.8] - 2025-08-22
 ### Added
 - `MmapOptions::no_reserve_swap`.
