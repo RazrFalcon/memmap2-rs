@@ -426,7 +426,20 @@ impl MmapInner {
         let offset = offset as isize - alignment as isize;
         let len = len + alignment;
         unsafe {
-            if libc::madvise(self.ptr.offset(offset), len, advice) != 0 {
+            let ptr = {
+                // The AIX signature of 'madvise()' differs from the POSIX
+                // specification, which expects 'void *' as the type of the
+                // 'addr' argument, whereas AIX uses 'caddr_t' (i.e., 'char *').
+                #[cfg(target_os = "aix")]
+                {
+                    self.ptr.offset(offset) as *mut u8
+                }
+                #[cfg(not(target_os = "aix"))]
+                {
+                    self.ptr.offset(offset)
+                }
+            };
+            if libc::madvise(ptr, len, advice) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())
