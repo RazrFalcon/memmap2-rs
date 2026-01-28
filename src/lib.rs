@@ -402,6 +402,8 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
     ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
+    ///
     /// # Example
     ///
     /// ```
@@ -446,6 +448,8 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub unsafe fn map_exec<T: MmapAsRawDesc>(&self, file: T) -> Result<Mmap> {
         let desc = file.as_raw_desc();
 
@@ -469,6 +473,8 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read and write permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     ///
     /// # Example
     ///
@@ -520,6 +526,8 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with writable permissions.
     ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
+    ///
     /// # Example
     ///
     /// ```
@@ -557,6 +565,8 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     ///
     /// # Example
     ///
@@ -602,6 +612,8 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails or
     /// when `len > isize::MAX`.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub fn map_anon(&self) -> Result<MmapMut> {
         let len = self.len.unwrap_or(0);
 
@@ -624,6 +636,8 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read and write permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub fn map_raw<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapRaw> {
         let desc = file.as_raw_desc();
 
@@ -644,7 +658,9 @@ impl MmapOptions {
     ///
     /// # Errors
     ///
-    /// This method returns an error when the underlying system call fails
+    /// This method returns an error when the underlying system call fails.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub fn map_raw_read_only<T: MmapAsRawDesc>(&self, file: T) -> Result<MmapRaw> {
         let desc = file.as_raw_desc();
 
@@ -719,6 +735,8 @@ impl Mmap {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     ///
     /// # Example
     ///
@@ -922,6 +940,8 @@ impl MmapRaw {
     ///
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read and write permissions.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub fn map_raw<T: MmapAsRawDesc>(file: T) -> Result<MmapRaw> {
         MmapOptions::new().map_raw(file)
     }
@@ -1184,6 +1204,8 @@ impl MmapMut {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read and write permissions.
     ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
+    ///
     /// # Example
     ///
     /// ```
@@ -1222,6 +1244,8 @@ impl MmapMut {
     ///
     /// This method returns an error when the underlying system call fails or
     /// when `len > isize::MAX`.
+    ///
+    /// Returns [`ErrorKind::Unsupported`] on unsupported platforms.
     pub fn map_anon(length: usize) -> Result<MmapMut> {
         MmapOptions::new().len(length).map_anon()
     }
