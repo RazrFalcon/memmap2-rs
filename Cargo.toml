@@ -1,9 +1,10 @@
 [package]
 name = "memmap2"
-version = "0.9.9"
+version = "0.9.10"
 authors = [
     "Dan Burkert <dan@danburkert.com>",
     "Yevhenii Reizner <razrfalcon@gmail.com>",
+    "The Contributors",
 ]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/RazrFalcon/memmap2-rs"

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.9.10] - 2026-02-15
+### Fixed
+- Fix compilation on AIX targets.
+  [@xingxue-ibm](https://github.com/xingxue-ibm)
+### Changed
+- Return `ErrorKind::Unsupported` on unsupported platforms to allow reliable runtime detection.
+  [@daxpedda](https://github.com/daxpedda)
+
 ## [0.9.9] - 2025-10-21
 ### Fixed
 - Fix compilation on visionOS (and other apple operating systems).
