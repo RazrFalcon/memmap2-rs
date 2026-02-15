@@ -348,6 +348,10 @@ impl MmapInner {
         Ok(inner)
     }
 
+    pub fn map_named(name: &str, len: usize) -> io::Result<MmapInner> {
+        Self::map_non_backed(len, Some(name))
+    }
+
     pub fn map_anon(
         len: usize,
         _stack: bool,
@@ -355,6 +359,10 @@ impl MmapInner {
         _huge: Option<u8>,
         _no_reserve: bool,
     ) -> io::Result<MmapInner> {
+        Self::map_non_backed(len, None)
+    }
+
+    fn map_non_backed(len: usize, name: Option<&str>) -> io::Result<MmapInner> {
         // Ensure a non-zero length for the underlying mapping
         let mapped_len = len.max(1);
         unsafe {
@@ -363,13 +371,23 @@ impl MmapInner {
             // on.
             // Also see https://msdn.microsoft.com/en-us/library/windows/desktop/aa366537.aspx
 
+            // The name needs to be converted to UTF16 and null terminated.
+            let utf16_term_name = name.map(|n| {
+                let mut name_buff = n.encode_utf16().collect::<Vec<_>>();
+                name_buff.push(0);
+                name_buff
+            });
+            let lpName = utf16_term_name
+                .map(|n| n.as_ptr() as LPCWSTR)
+                .unwrap_or(ptr::null());
+
             let mapping = CreateFileMappingW(
                 INVALID_HANDLE_VALUE,
                 ptr::null_mut(),
                 PAGE_EXECUTE_READWRITE,
                 (mapped_len >> 16 >> 16) as DWORD,
                 (mapped_len & 0xffffffff) as DWORD,
-                ptr::null(),
+                lpName,
             );
             if mapping.is_null() {
                 return Err(io::Error::last_os_error());
