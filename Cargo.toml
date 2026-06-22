@@ -12,7 +12,7 @@ documentation = "https://docs.rs/memmap2"
 description = "Cross-platform Rust API for memory-mapped file IO"
 keywords = ["mmap", "memory-map", "io", "file"]
 edition = "2021"
-rust-version = "1.63"
+rust-version = "1.65"
 
 [dependencies]
 stable_deref_trait = { version = "1.0", optional = true }
