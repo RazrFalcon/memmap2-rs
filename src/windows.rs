@@ -489,6 +489,11 @@ impl MmapInner {
     pub fn len(&self) -> usize {
         self.len
     }
+
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn check_safe_to_map(_handle: RawHandle, _offset: u64, _len: usize) -> io::Result<bool> {
+        Ok(false)
+    }
 }
 
 impl Drop for MmapInner {

@@ -77,6 +77,11 @@ impl MmapInner {
     pub fn len(&self) -> usize {
         match self.never {}
     }
+
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn check_safe_to_map(_file: &File, _offset: u64, _len: usize) -> io::Result<bool> {
+        Ok(false)
+    }
 }
 
 pub fn file_len(file: &File) -> io::Result<u64> {
