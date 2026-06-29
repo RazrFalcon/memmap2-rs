@@ -509,6 +509,55 @@ impl MmapInner {
             }
         }
     }
+
+    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn check_safe_to_map(_fd: RawFd, _offset: u64, _len: usize) -> io::Result<bool> {
+        Ok(false)
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    fn has_fs_verity(fd: RawFd) -> bool {
+        #[repr(C)]
+        struct FsVerityDigest {
+            digest_algorithm: u16,
+            digest_size: u16,
+        }
+        const FS_IOC_MEASURE_VERITY: libc::c_ulong = 0xC004_6686;
+
+        let mut digest = std::mem::MaybeUninit::<FsVerityDigest>::zeroed();
+        #[allow(clippy::cast_possible_wrap)]
+        let ret = unsafe { libc::ioctl(fd, FS_IOC_MEASURE_VERITY as _, digest.as_mut_ptr()) };
+        ret == 0 || io::Error::last_os_error().raw_os_error() == Some(libc::EOVERFLOW)
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    fn has_fs_verity(_fd: RawFd) -> bool {
+        false
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+    pub fn check_safe_to_map(fd: RawFd, offset: u64, len: usize) -> io::Result<bool> {
+        let seals = unsafe { libc::fcntl(fd, libc::F_GET_SEALS) };
+        if seals >= 0 {
+            let required = libc::F_SEAL_SHRINK | libc::F_SEAL_WRITE;
+            if seals & required != required {
+                return Ok(false);
+            }
+        } else if !Self::has_fs_verity(fd) {
+            return Ok(false);
+        }
+
+        let file_size = file_len(fd)?;
+        let end = offset.checked_add(len as u64).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "mapping region overflows u64")
+        })?;
+        if end > file_size {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
 }
 
 impl Drop for MmapInner {
