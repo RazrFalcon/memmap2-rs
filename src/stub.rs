@@ -43,6 +43,10 @@ impl MmapInner {
         MmapInner::new()
     }
 
+    pub fn map_named(_: &str, _: usize) -> io::Result<MmapInner> {
+        MmapInner::new()
+    }
+
     pub fn flush(&self, _: usize, _: usize) -> io::Result<()> {
         match self.never {}
     }
