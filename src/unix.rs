@@ -64,13 +64,13 @@ const MAP_NORESERVE: libc::c_int = 0;
 
 #[cfg(any(
     target_os = "android",
-    all(target_os = "linux", not(target_env = "musl"))
+    all(target_os = "linux", not(any(target_env = "musl", target_env = "ohos")))
 ))]
 use libc::{mmap64 as mmap, off64_t as off_t};
 
 #[cfg(not(any(
     target_os = "android",
-    all(target_os = "linux", not(target_env = "musl"))
+    all(target_os = "linux", not(any(target_env = "musl", target_env = "ohos")))
 )))]
 use libc::{mmap, off_t};
 
