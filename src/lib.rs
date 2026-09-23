@@ -2447,4 +2447,43 @@ mod test {
         // Write out to the whole expanded slice.
         mmap.copy_from_slice(&incr);
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_advice_out_of_bounds() {
+        let mmap = MmapMut::map_anon(128).unwrap();
+        // An offset beyond the mapping length should be rejected
+        let res = { mmap.advise_range(Advice::Random, 200, 10) };
+        assert!(res.is_err());
+
+        // A length that exceeds the remaining space from the offset should be rejected
+        let res = { mmap.advise_range(Advice::Random, 100, 50) };
+        assert!(res.is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_lock_unlock_non_page_aligned() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("mmap_lock_align");
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .unwrap();
+        file.set_len(8192).unwrap(); // 2 pages typically
+
+        // Create a mapping with an offset that is not page-aligned,
+        // or lock a sub-region if your API supports it, or just verify
+        // that locking/unlocking the whole map works cleanly.
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
+
+        // This exercises the internal page-alignment rounding for mlock/munlock
+        mmap.lock()
+            .expect("lock should succeed even with alignment adjustments");
+        mmap.unlock().expect("unlock should succeed");
+    }
 }

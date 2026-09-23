@@ -450,7 +450,8 @@ impl MmapInner {
     /// Some `advise` values can be unsound depending on the situation.
     /// It is up to the caller to only perform sound madvise() calls on the memory range.
     pub unsafe fn advise(&self, advice: libc::c_int, offset: usize, len: usize) -> io::Result<()> {
-        if offset > self.len || len > self.len {
+        // Use the strict bounds check to prevent out-of-bounds calculations
+        if offset > self.len || len > self.len - offset {
             return Err(std::io::ErrorKind::InvalidInput.into());
         }
         let alignment = (self.ptr as usize + offset) % page_size();
@@ -496,8 +497,14 @@ impl MmapInner {
     }
 
     pub fn lock(&self) -> io::Result<()> {
+        let alignment = self.ptr as usize % page_size();
+        // SAFETY: rounding self.ptr down to the previous page boundary gives the pointer of the actual memory map.
+        let ptr = unsafe { self.ptr.sub(alignment) };
+        let len = self.len + alignment;
+        let len = len.max(1);
+
         unsafe {
-            if libc::mlock(self.ptr, self.len) != 0 {
+            if libc::mlock(ptr, len) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())
@@ -506,8 +513,14 @@ impl MmapInner {
     }
 
     pub fn unlock(&self) -> io::Result<()> {
+        let alignment = self.ptr as usize % page_size();
+        // SAFETY: rounding self.ptr down to the previous page boundary gives the pointer of the actual memory map.
+        let ptr = unsafe { self.ptr.sub(alignment) };
+        let len = self.len + alignment;
+        let len = len.max(1);
+
         unsafe {
-            if libc::munlock(self.ptr, self.len) != 0 {
+            if libc::munlock(ptr, len) != 0 {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(())
