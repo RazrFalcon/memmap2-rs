@@ -1,6 +1,7 @@
 /// Values supported by [`Mmap::advise`][crate::Mmap::advise] and [`MmapMut::advise`][crate::MmapMut::advise] functions.
 ///
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+#[non_exhaustive]
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Advice {
@@ -234,6 +235,24 @@ pub enum Advice {
     ZeroWiredPages = libc::MADV_ZERO_WIRED_PAGES,
 }
 
+impl Advice {
+    /// Returns the raw `libc::c_int` value for this advice.
+    pub const fn as_raw(self) -> libc::c_int {
+        self as libc::c_int
+    }
+
+    /// Performs a runtime check if the kernel recognizes this advice value.
+    /// Note that this checks if the kernel supports the flag generally,
+    /// not whether it will succeed on a specific mapping or permission set.
+    /// Only supported on Linux. See the [`madvise(2)`] man page.
+    ///
+    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
+    #[cfg(target_os = "linux")]
+    pub fn is_supported(self) -> bool {
+        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
+    }
+}
+
 /// Values supported by [`Mmap::unchecked_advise`][crate::Mmap::unchecked_advise] and [`MmapMut::unchecked_advise`][crate::MmapMut::unchecked_advise] functions.
 ///
 /// These flags can be passed to the [madvise (2)][man_page] system call
@@ -247,6 +266,7 @@ pub enum Advice {
 /// are updated by the kernel's memory management subsystem.
 ///
 /// [man_page]: https://man7.org/linux/man-pages/man2/madvise.2.html
+#[non_exhaustive]
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum UncheckedAdvice {
@@ -282,7 +302,7 @@ pub enum UncheckedAdvice {
     ///
     /// # Safety
     ///
-    /// Using the returned value with conceptually write to the
+    /// Using the returned value will conceptually write to the
     /// mapped pages, i.e. borrowing the mapping when the pages
     /// are freed results in undefined behaviour.
     DontNeed = libc::MADV_DONTNEED,
@@ -316,7 +336,7 @@ pub enum UncheckedAdvice {
     ///
     /// # Safety
     ///
-    /// Using the returned value with conceptually write to the
+    /// Using the returned value will conceptually write to the
     /// mapped pages, i.e. borrowing the mapping while the pages
     /// are still being freed results in undefined behaviour.
     #[cfg(any(target_os = "linux", target_vendor = "apple"))]
@@ -343,7 +363,7 @@ pub enum UncheckedAdvice {
     ///
     /// # Safety
     ///
-    /// Using the returned value with conceptually write to the
+    /// Using the returned value will conceptually write to the
     /// mapped pages, i.e. borrowing the mapping when the pages
     /// are freed results in undefined behaviour.
     #[cfg(target_os = "linux")]
@@ -355,7 +375,7 @@ pub enum UncheckedAdvice {
     ///
     /// # Safety
     ///
-    /// Using the returned value with conceptually write to the
+    /// Using the returned value will conceptually write to the
     /// mapped pages, i.e. borrowing the mapping while the pages
     /// are still being freed results in undefined behaviour.
     #[cfg(target_vendor = "apple")]
@@ -369,11 +389,29 @@ pub enum UncheckedAdvice {
     ///
     /// # Safety
     ///
-    /// Using the returned value with conceptually write to the
+    /// Using the returned value will conceptually write to the
     /// mapped pages, i.e. borrowing the mapping while the pages
     /// are still being freed results in undefined behaviour.
     #[cfg(target_vendor = "apple")]
     FreeReuse = libc::MADV_FREE_REUSE,
+}
+
+impl UncheckedAdvice {
+    /// Returns the raw `libc::c_int` value for this advice.
+    pub const fn as_raw(self) -> libc::c_int {
+        self as libc::c_int
+    }
+
+    /// Performs a runtime check if the kernel recognizes this advice value.
+    /// Note that this checks if the kernel supports the flag generally,
+    /// not whether it will succeed on a specific mapping or permission set.
+    /// Only supported on Linux. See the [`madvise(2)`] man page.
+    ///
+    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
+    #[cfg(target_os = "linux")]
+    pub fn is_supported(self) -> bool {
+        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
+    }
 }
 
 // Future expansion:
@@ -382,28 +420,6 @@ pub enum UncheckedAdvice {
 // MADV_KEEPONFORK  (since Linux 4.14)
 // MADV_COLD  (since Linux 5.4)
 // MADV_PAGEOUT  (since Linux 5.4)
-
-#[cfg(target_os = "linux")]
-impl Advice {
-    /// Performs a runtime check if this advice is supported by the kernel.
-    /// Only supported on Linux. See the [`madvise(2)`] man page.
-    ///
-    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
-    pub fn is_supported(self) -> bool {
-        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
-    }
-}
-
-#[cfg(target_os = "linux")]
-impl UncheckedAdvice {
-    /// Performs a runtime check if this advice is supported by the kernel.
-    /// Only supported on Linux. See the [`madvise(2)`] man page.
-    ///
-    /// [`madvise(2)`]: https://man7.org/linux/man-pages/man2/madvise.2.html#VERSIONS
-    pub fn is_supported(self) -> bool {
-        (unsafe { libc::madvise(std::ptr::null_mut(), 0, self as libc::c_int) }) == 0
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -418,5 +434,12 @@ mod tests {
         assert!(Advice::WillNeed.is_supported());
 
         assert!(UncheckedAdvice::DontNeed.is_supported());
+    }
+
+    #[test]
+    fn test_as_raw() {
+        use super::*;
+        assert_eq!(Advice::Normal.as_raw(), libc::MADV_NORMAL);
+        assert_eq!(UncheckedAdvice::DontNeed.as_raw(), libc::MADV_DONTNEED);
     }
 }
