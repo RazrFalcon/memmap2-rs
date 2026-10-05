@@ -859,10 +859,7 @@ impl Mmap {
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this memory map will be accessed.
@@ -878,10 +875,7 @@ impl Mmap {
     #[cfg(unix)]
     pub unsafe fn unchecked_advise(&self, advice: UncheckedAdvice) -> Result<()> {
         // SAFETY: safety requirements forwarded to caller.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -894,7 +888,7 @@ impl Mmap {
     #[cfg(unix)]
     pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -917,7 +911,7 @@ impl Mmap {
         len: usize,
     ) -> Result<()> {
         // SAFETY: safety requirements forwarded to caller.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -1123,10 +1117,7 @@ impl MmapRaw {
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this memory map will be accessed.
@@ -1142,10 +1133,7 @@ impl MmapRaw {
     #[cfg(unix)]
     pub unsafe fn unchecked_advise(&self, advice: UncheckedAdvice) -> Result<()> {
         // SAFETY: safety requirements forwarded to caller.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -1158,7 +1146,7 @@ impl MmapRaw {
     #[cfg(unix)]
     pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -1181,7 +1169,7 @@ impl MmapRaw {
         len: usize,
     ) -> Result<()> {
         // SAFETY: safety requirements forwarded to caller.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
@@ -1464,10 +1452,7 @@ impl MmapMut {
     #[cfg(unix)]
     pub fn advise(&self, advice: Advice) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this memory map will be accessed.
@@ -1478,10 +1463,7 @@ impl MmapMut {
     #[cfg(unix)]
     pub unsafe fn unchecked_advise(&self, advice: UncheckedAdvice) -> Result<()> {
         // SAFETY: Safety requirements pushed to caller.
-        unsafe {
-            self.inner
-                .advise(advice as libc::c_int, 0, self.inner.len())
-        }
+        unsafe { self.inner.advise(advice.as_raw(), 0, self.inner.len()) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -1494,7 +1476,7 @@ impl MmapMut {
     #[cfg(unix)]
     pub fn advise_range(&self, advice: Advice, offset: usize, len: usize) -> Result<()> {
         // SAFETY: The `Advice` enum only allows safe advice values.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Advise OS how this range of memory map will be accessed.
@@ -1512,7 +1494,7 @@ impl MmapMut {
         len: usize,
     ) -> Result<()> {
         // SAFETY: Safety requirements pushed to caller.
-        unsafe { self.inner.advise(advice as libc::c_int, offset, len) }
+        unsafe { self.inner.advise(advice.as_raw(), offset, len) }
     }
 
     /// Lock the whole memory map into RAM. Only supported on Unix.
