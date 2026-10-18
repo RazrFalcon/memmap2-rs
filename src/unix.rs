@@ -523,7 +523,11 @@ impl MmapInner {
 
     #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
     #[allow(clippy::unnecessary_wraps)]
-    pub fn check_safe_to_map(_fd: RawFd, _offset: u64, _len: usize) -> io::Result<bool> {
+    pub fn check_safe_to_map(
+        _fd: RawFd,
+        _offset: u64,
+        _len: usize,
+    ) -> Result<(), crate::MapIfSafeError> {
         Err(crate::MapIfSafeError::new_not_supported())
     }
 
