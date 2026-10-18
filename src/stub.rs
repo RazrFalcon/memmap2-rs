@@ -98,7 +98,7 @@ impl MmapInner {
         _file: &File,
         _offset: u64,
         _len: usize,
-    ) -> io::Result<(), crate::MapIfSafeError> {
+    ) -> Result<(), crate::MapIfSafeError> {
         Err(crate::MapIfSafeError::new_not_supported())
     }
 }
