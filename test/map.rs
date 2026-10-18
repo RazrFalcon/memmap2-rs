@@ -7,6 +7,7 @@ use std::mem;
 use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::fs::OpenOptionsExt;
+
 #[cfg(windows)]
 const GENERIC_ALL: u32 = 0x10000000;
 
@@ -741,6 +742,149 @@ fn remap_shrink() {
 
     // Check that the mmap is still writable along the slice length
     mmap.copy_from_slice(&incr);
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+fn map_if_safe_sealed_memfd() {
+    use std::io::Write;
+    use std::os::unix::io::FromRawFd;
+
+    let fd = unsafe {
+        libc::memfd_create(
+            b"test\0".as_ptr().cast::<libc::c_char>(),
+            libc::MFD_ALLOW_SEALING,
+        )
+    };
+    if fd < 0 {
+        eprintln!("skipping: memfd_create not supported");
+        return;
+    }
+    let mut file = unsafe { File::from_raw_fd(fd) };
+
+    file.write_all(b"Hello, world!").unwrap();
+
+    // Should report not-safe without seals.
+    assert!(Mmap::map_if_safe(&file).unwrap_err().not_safe());
+
+    // Should report not-safe with only F_SEAL_SHRINK
+    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, libc::F_SEAL_SHRINK) };
+    assert!(Mmap::map_if_safe(&file).unwrap_err().not_safe());
+
+    // Should succeed with both seals
+    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, libc::F_SEAL_WRITE) };
+    let mmap = Mmap::map_if_safe(&file).unwrap();
+    assert_eq!(&mmap[..], b"Hello, world!");
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+fn map_if_safe_with_offset() {
+    use std::io::Write;
+    use std::os::unix::io::FromRawFd;
+
+    let fd = unsafe {
+        libc::memfd_create(
+            b"test\0".as_ptr().cast::<libc::c_char>(),
+            libc::MFD_ALLOW_SEALING,
+        )
+    };
+    if fd < 0 {
+        eprintln!("skipping: memfd_create not supported");
+        return;
+    }
+    let mut file = unsafe { File::from_raw_fd(fd) };
+
+    file.write_all(b"Hello, world!").unwrap();
+    let seals = libc::F_SEAL_SHRINK | libc::F_SEAL_WRITE;
+    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, seals) };
+
+    let mmap = MmapOptions::new().offset(7).map_if_safe(&file).unwrap();
+    assert_eq!(&mmap[..], b"world!");
+
+    // Mapping beyond file size should report not-safe
+    assert!(MmapOptions::new()
+        .offset(7)
+        .len(100)
+        .map_if_safe(&file)
+        .unwrap_err()
+        .not_safe());
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+fn map_if_safe_regular_file() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let path = tempdir.path().join("regular");
+
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .unwrap();
+    file.set_len(128).unwrap();
+
+    assert!(Mmap::map_if_safe(&file).unwrap_err().not_safe());
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn map_if_safe_verity() {
+    #[repr(C)]
+    struct FsVerityEnableArg {
+        version: u32,
+        hash_algorithm: u32,
+        block_size: u32,
+        salt_size: u32,
+        salt_ptr: u64,
+        sig_size: u32,
+        _reserved1: u32,
+        sig_ptr: u64,
+        _reserved2: [u64; 11],
+    }
+
+    // _IOW('f', 133, fsverity_enable_arg) — MIPS uses different ioctl encoding
+    #[cfg(any(target_arch = "mips", target_arch = "mips64"))]
+    const FS_IOC_ENABLE_VERITY: libc::c_ulong = 0x80806685;
+    #[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
+    const FS_IOC_ENABLE_VERITY: libc::c_ulong = 0x40806685;
+
+    let tempdir = match std::env::var("MEMMAP2_TEST_VERITY_DIR") {
+        Ok(dir) => tempfile::TempDir::new_in(dir).unwrap(),
+        Err(_) => tempfile::tempdir().unwrap(),
+    };
+    let path = tempdir.path().join("verity_test");
+
+    File::create(&path)
+        .unwrap()
+        .write_all(b"Hello, verity!")
+        .unwrap();
+
+    let file = File::open(&path).unwrap();
+
+    let arg = FsVerityEnableArg {
+        version: 1,
+        hash_algorithm: 1, // FS_VERITY_HASH_ALG_SHA256
+        block_size: 4096,
+        salt_size: 0,
+        salt_ptr: 0,
+        sig_size: 0,
+        _reserved1: 0,
+        sig_ptr: 0,
+        _reserved2: [0; 11],
+    };
+
+    #[allow(clippy::cast_possible_wrap)]
+    let ret = unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_ENABLE_VERITY as _, &arg) };
+    if ret != 0 {
+        eprintln!("skipping: fs-verity not supported on this filesystem");
+        return;
+    }
+
+    let mmap = Mmap::map_if_safe(&file).unwrap();
+    assert_eq!(&mmap[..], b"Hello, verity!");
 }
 
 #[test]
