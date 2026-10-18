@@ -765,6 +765,7 @@ impl MmapOptions {
             self.offset,
             self.populate,
             self.no_reserve_swap,
+            !self.no_probe_handle,
         )
         .map_err(MapIfSafeError::new_map_failed)
         .map(|inner| Mmap { inner })
