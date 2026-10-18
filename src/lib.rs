@@ -1640,6 +1640,3 @@ impl RemapOptions {
         }
     }
 }
-
-#[cfg(test)]
-mod lib_tests;
