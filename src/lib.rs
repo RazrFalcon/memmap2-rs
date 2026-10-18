@@ -211,6 +211,7 @@ impl fmt::Debug for MapIfSafeError {
 
 impl From<MapIfSafeError> for std::io::Error {
     fn from(value: MapIfSafeError) -> Self {
+        #[allow(clippy::match_same_arms)]
         match value.inner {
             MapIfSafeErrorInner::NotSupported => std::io::ErrorKind::Unsupported.into(),
             MapIfSafeErrorInner::NotSafe(e) => e,
