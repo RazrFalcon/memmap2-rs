@@ -514,6 +514,124 @@ impl MmapInner {
             }
         }
     }
+
+    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "freebsd")))]
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn check_safe_to_map(_fd: RawFd, _offset: u64, _len: usize) -> io::Result<bool> {
+        Err(crate::MapIfSafeError::new_not_supported())
+    }
+
+    /// Check if a requisted region of a file is safe to map.
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+    pub fn check_safe_to_map(
+        fd: RawFd,
+        offset: u64,
+        len: usize,
+    ) -> Result<(), crate::MapIfSafeError> {
+        // First check if the FD itself is safe.
+        Self::check_fd_safe_to_map(fd)?;
+
+        // Now check if the mapping request including offset and length is safe.
+        let file_size = file_len(fd).map_err(|e| {
+            crate::MapIfSafeError::new_not_safe(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("fd is not safe to map: failed to determine file size: {e}"),
+            ))
+        })?;
+
+        let end = offset.checked_add(len as u64).ok_or_else(|| {
+            crate::MapIfSafeError::new_map_failed(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "mapping region overflows u64",
+            ))
+        })?;
+        if end > file_size {
+            return Err(crate::MapIfSafeError::new_not_safe(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("map request is not safe: offset + length ({end}) exceeds the size of the file ({file_size})"),
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Check if a file descriptor is safe to map.
+    ///
+    /// This only checks the file, not the whole map request.
+    /// A request to map more than the file contents must still be rejected.
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+    fn check_fd_safe_to_map(fd: RawFd) -> Result<(), crate::MapIfSafeError> {
+        // Check for properly sealed memfd on Linux, Android and FreeBSD.
+        if let Some(seals) = Self::get_memfd_seals(fd) {
+            return Self::check_memfd_seals(seals);
+        }
+
+        // On FreeBSD we have not more checks.
+        #[cfg(target_os = "freebsd")]
+        return Err(crate::MapIfSafeError::new_not_safe(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "fd is not safe to map: it is not a memfd",
+        )));
+
+        // Also check for fs-verity on Linux and Android.
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        if Self::has_fs_verity(fd) {
+            Ok(())
+        } else {
+            Err(crate::MapIfSafeError::new_not_safe(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "fd is not safe to map: it is not a memfd and it has no fs-verity",
+            )))
+        }
+    }
+
+    /// Get the seals of a memfd.
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+    fn get_memfd_seals(fd: RawFd) -> Option<libc::c_int> {
+        // SAFETY: F_GET_SEALS has no side effects, and just returns an error on invalid FDs.
+        let seals = unsafe { libc::fcntl(fd, libc::F_GET_SEALS) };
+        if seals >= 0 {
+            Some(seals)
+        } else {
+            None
+        }
+    }
+
+    /// Check if the seals of a memfd to see if the FD is immutable (and safe to map).
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+    fn check_memfd_seals(seals: libc::c_int) -> Result<(), crate::MapIfSafeError> {
+        let required = libc::F_SEAL_SHRINK | libc::F_SEAL_WRITE;
+        let overlap = seals & required;
+        if overlap == required {
+            Ok(())
+        } else {
+            let error = match overlap {
+                libc::F_SEAL_SHRINK => "fd is not safe to map: missing seals F_SEAL_WRITE",
+                libc::F_SEAL_WRITE => "fd is not safe to map: missing seals F_SEAL_SHRINK",
+                _ => "fd is not safe to map: missing seals F_SEAL_SHRINK and F_SEAL_WRITE",
+            };
+            Err(crate::MapIfSafeError::new_not_safe(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                error,
+            )))
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    /// Check if a file has vs-verity enabled.
+    fn has_fs_verity(fd: RawFd) -> bool {
+        #[repr(C)]
+        struct FsVerityDigest {
+            digest_algorithm: u16,
+            digest_size: u16,
+        }
+        const FS_IOC_MEASURE_VERITY: libc::c_ulong = 0xC004_6686;
+
+        let mut digest = std::mem::MaybeUninit::<FsVerityDigest>::zeroed();
+        #[allow(clippy::cast_possible_wrap)]
+        let ret = unsafe { libc::ioctl(fd, FS_IOC_MEASURE_VERITY as _, digest.as_mut_ptr()) };
+        ret == 0 || io::Error::last_os_error().raw_os_error() == Some(libc::EOVERFLOW)
+    }
 }
 
 impl Drop for MmapInner {
