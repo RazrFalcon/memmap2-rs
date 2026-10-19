@@ -945,3 +945,60 @@ fn remap_with_offset() {
     // Write out to the whole expanded slice.
     mmap.copy_from_slice(&incr);
 }
+
+#[test]
+#[cfg(unix)]
+fn test_advice_out_of_bounds() {
+    let mmap = MmapMut::map_anon(128).unwrap();
+    // An offset beyond the mapping length should be rejected
+    let res = { mmap.advise_range(Advice::Random, 200, 10) };
+    assert!(res.is_err());
+
+    // A length that exceeds the remaining space from the offset should be rejected
+    let res = { mmap.advise_range(Advice::Random, 100, 50) };
+    assert!(res.is_err());
+}
+
+#[test]
+#[cfg(unix)]
+fn test_advice_range_exact_end() {
+    let mmap = MmapMut::map_anon(128).unwrap();
+
+    assert!(mmap
+        .advise_range(Advice::Random, 100, 28)
+        .is_ok());
+
+    assert!(mmap
+        .advise_range(Advice::Random, 100, 29)
+        .is_err());
+}
+
+#[test]
+#[cfg(unix)]
+fn test_lock_unlock_non_page_aligned_offset() {
+    use std::fs::OpenOptions;
+
+    let tempdir = tempfile::tempdir().unwrap();
+    let path = tempdir.path().join("mmap_lock_align");
+
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .unwrap();
+
+    file.set_len(8192).unwrap();
+
+    let mmap = unsafe {
+        MmapOptions::new()
+            .offset(1)
+            .len(4096)
+            .map(&file)
+            .unwrap()
+    };
+
+    mmap.lock().unwrap();
+    mmap.unlock().unwrap();
+}
