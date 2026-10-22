@@ -1,11 +1,13 @@
+//! Unsupported-platform implementation stub.
+//!
+//! `MmapInner` is intentionally unconstructible using an uninhabited type
+//! so that all instance methods are statically proven unreachable.
+use std::convert::Infallible;
 use std::fs::File;
 use std::io;
 
-// A stable alternative to https://doc.rust-lang.org/stable/std/primitive.never.html
-enum Never {}
-
 pub struct MmapInner {
-    never: Never,
+    never: Infallible,
 }
 
 impl MmapInner {
