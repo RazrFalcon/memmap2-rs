@@ -58,7 +58,8 @@
 
 #[cfg_attr(unix, path = "unix.rs")]
 #[cfg_attr(windows, path = "windows.rs")]
-#[cfg_attr(not(any(unix, windows)), path = "stub.rs")]
+#[cfg_attr(target_os = "wasi", path = "wasi.rs")]
+#[cfg_attr(not(any(unix, windows, target_os = "wasi")), path = "stub.rs")]
 mod os;
 use crate::os::{file_len, MmapInner};
 

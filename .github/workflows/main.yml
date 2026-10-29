@@ -147,6 +147,25 @@ jobs:
     - name: Run check
       run: cargo check --all-features --target wasm32-unknown-unknown
 
+  test-wasi:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Install toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-wasip1
+
+    - name: Install wasmtime
+      uses: bytecodealliance/actions/wasmtime/setup@v1
+
+    - name: Run tests
+      env:
+        CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime run --dir=.
+      run: cargo test --locked --all-features --target wasm32-wasip1 --lib
+
   check-visionos:
     runs-on: ubuntu-latest
     steps:
