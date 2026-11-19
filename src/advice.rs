@@ -1,3 +1,13 @@
+// QNX has no madvise(); its posix_madvise() takes the POSIX_MADV_* values.
+#[cfg(not(any(target_os = "nto", target_os = "qnx")))]
+use libc::{MADV_DONTNEED, MADV_NORMAL, MADV_RANDOM, MADV_SEQUENTIAL, MADV_WILLNEED};
+#[cfg(any(target_os = "nto", target_os = "qnx"))]
+use libc::{
+    POSIX_MADV_DONTNEED as MADV_DONTNEED, POSIX_MADV_NORMAL as MADV_NORMAL,
+    POSIX_MADV_RANDOM as MADV_RANDOM, POSIX_MADV_SEQUENTIAL as MADV_SEQUENTIAL,
+    POSIX_MADV_WILLNEED as MADV_WILLNEED,
+};
+
 /// Values supported by [`Mmap::advise`][crate::Mmap::advise] and [`MmapMut::advise`][crate::MmapMut::advise] functions.
 ///
 /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
@@ -7,26 +17,26 @@ pub enum Advice {
     /// **MADV_NORMAL**
     ///
     /// No special treatment.  This is the default.
-    Normal = libc::MADV_NORMAL,
+    Normal = MADV_NORMAL,
 
     /// **MADV_RANDOM**
     ///
     /// Expect page references in random order.  (Hence, read
     /// ahead may be less useful than normally.)
-    Random = libc::MADV_RANDOM,
+    Random = MADV_RANDOM,
 
     /// **MADV_SEQUENTIAL**
     ///
     /// Expect page references in sequential order.  (Hence, pages
     /// in the given range can be aggressively read ahead, and may
     /// be freed soon after they are accessed.)
-    Sequential = libc::MADV_SEQUENTIAL,
+    Sequential = MADV_SEQUENTIAL,
 
     /// **MADV_WILLNEED**
     ///
     /// Expect access in the near future.  (Hence, it might be a
     /// good idea to read some pages ahead.)
-    WillNeed = libc::MADV_WILLNEED,
+    WillNeed = MADV_WILLNEED,
 
     /// **MADV_DONTFORK** - Linux only (since Linux 2.6.16)
     ///
@@ -285,7 +295,10 @@ pub enum UncheckedAdvice {
     /// Using the returned value with conceptually write to the
     /// mapped pages, i.e. borrowing the mapping when the pages
     /// are freed results in undefined behaviour.
-    DontNeed = libc::MADV_DONTNEED,
+    ///
+    /// On QNX this is `posix_madvise(POSIX_MADV_DONTNEED)`, which is
+    /// advisory only: the pages are not discarded.
+    DontNeed = MADV_DONTNEED,
 
     //
     // The rest are Linux-specific
