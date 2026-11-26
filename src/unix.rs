@@ -501,6 +501,20 @@ impl MmapInner {
         }
     }
 
+    pub fn resident_pages(&self) -> io::Result<usize> {
+        let page = page_size();
+        let alignment = self.ptr as usize % page;
+        let len = self.len + alignment;
+        let mut vec = vec![0; (len + page - 1) / page];
+        unsafe {
+            let ptr = self.ptr.offset(-(alignment as isize));
+            if libc::mincore(ptr, len, vec.as_mut_ptr()) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok(vec.iter().filter(|&&state| state & 1 != 0).count())
+    }
+
     pub fn lock(&self) -> io::Result<()> {
         unsafe {
             if libc::mlock(self.ptr, self.len) != 0 {
