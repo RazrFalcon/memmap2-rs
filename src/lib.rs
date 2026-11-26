@@ -1671,6 +1671,27 @@ impl MmapMut {
     /// Lock the whole memory map into RAM. Only supported on Unix.
     ///
     /// See [mlock()](https://man7.org/linux/man-pages/man2/mlock.2.html) map page.
+    /// Discards the pages of `offset..offset + len` of the memory map, so the system can reclaim
+    /// the memory behind them. Only supported on Unix.
+    ///
+    /// The contents of the range are unspecified afterwards: an anonymous map reads zero on Linux,
+    /// and a map of a file reads the file again. `&mut self` means nothing borrows the map while
+    /// its bytes change, which is why this is safe where [`UncheckedAdvice::DontNeed`] is not.
+    ///
+    /// `offset` and `len` must be multiples of the page size, inside the map; otherwise this
+    /// returns [`ErrorKind::InvalidInput`] and changes nothing. A range is never rounded out,
+    /// since that would discard bytes outside it.
+    ///
+    /// On Linux and Android this is `madvise(MADV_DONTNEED)`. On Apple targets an anonymous map
+    /// gets fresh pages mapped over the range (`MAP_FIXED`), since no advice there frees pages at
+    /// once, and if that remap fails the process aborts, because the range may be left unmapped;
+    /// a map of a file returns [`ErrorKind::Unsupported`]. Other Unix targets return
+    /// [`ErrorKind::Unsupported`], since their advice may free pages later rather than now.
+    #[cfg(unix)]
+    pub fn discard_range(&mut self, offset: usize, len: usize) -> std::io::Result<()> {
+        self.inner.discard(offset, len)
+    }
+
     /// Returns how many pages of the memory map are resident in RAM. Only supported on Unix.
     ///
     /// A page is the system's page size. A page the map covers in part counts as a whole one.

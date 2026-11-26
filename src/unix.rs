@@ -83,6 +83,8 @@ use libc::{mmap, off_t};
 pub struct MmapInner {
     ptr: *mut libc::c_void,
     len: usize,
+    /// Whether this is an anonymous private map, which [`MmapInner::discard`] may replace.
+    anon: bool,
 }
 
 impl MmapInner {
@@ -245,6 +247,7 @@ impl MmapInner {
         Self {
             ptr: unsafe { ptr.add(offset) },
             len,
+            anon: false,
         }
     }
 
@@ -371,6 +374,10 @@ impl MmapInner {
             -1,
             0,
         )
+        .map(|mut inner| {
+            inner.anon = true;
+            inner
+        })
     }
 
     pub fn flush(&self, offset: usize, len: usize) -> io::Result<()> {
@@ -499,6 +506,19 @@ impl MmapInner {
             std::mem::forget(old_map);
             Ok(())
         }
+    }
+
+    pub fn discard(&mut self, offset: usize, len: usize) -> io::Result<()> {
+        let page = page_size();
+        let in_bounds = offset.checked_add(len).map_or(false, |end| end <= self.len);
+        if !in_bounds || (self.ptr as usize + offset) % page != 0 || len % page != 0 {
+            return Err(io::Error::from(io::ErrorKind::InvalidInput));
+        }
+        if len == 0 {
+            return Ok(());
+        }
+        let start = unsafe { self.ptr.add(offset) };
+        discard_pages(start, len, self.anon)
     }
 
     pub fn resident_pages(&self) -> io::Result<usize> {
@@ -671,6 +691,38 @@ impl Drop for MmapInner {
 
 unsafe impl Sync for MmapInner {}
 unsafe impl Send for MmapInner {}
+
+/// Discards the pages of an in-bounds, page-aligned range: at once, so no byte changes after this
+/// returns.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn discard_pages(start: *mut libc::c_void, len: usize, _anon: bool) -> io::Result<()> {
+    if unsafe { libc::madvise(start, len, libc::MADV_DONTNEED) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Discards the pages of an in-bounds, page-aligned range of an anonymous map by mapping fresh
+/// pages over it.
+#[cfg(target_vendor = "apple")]
+fn discard_pages(start: *mut libc::c_void, len: usize, anon: bool) -> io::Result<()> {
+    if !anon {
+        return Err(io::Error::from(io::ErrorKind::Unsupported));
+    }
+    let flags = libc::MAP_FIXED | libc::MAP_PRIVATE | libc::MAP_ANON;
+    let fresh = unsafe { libc::mmap(start, len, libc::PROT_READ | libc::PROT_WRITE, flags, -1, 0) };
+    if fresh == libc::MAP_FAILED {
+        // A failed MAP_FIXED may already have removed the old pages, and the caller holds the map.
+        std::process::abort();
+    }
+    Ok(())
+}
+
+/// Elsewhere advice may free pages after it returns, so nothing is discarded.
+#[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
+fn discard_pages(_start: *mut libc::c_void, _len: usize, _anon: bool) -> io::Result<()> {
+    Err(io::Error::from(io::ErrorKind::Unsupported))
+}
 
 fn page_size() -> usize {
     static PAGE_SIZE: AtomicUsize = AtomicUsize::new(0);
