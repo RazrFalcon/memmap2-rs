@@ -71,12 +71,14 @@ use std::fmt;
 #[cfg(not(any(unix, windows)))]
 use std::fs::File;
 use std::io::{Error, ErrorKind};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::slice;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
@@ -1176,6 +1178,75 @@ impl MmapRaw {
         self.inner.len()
     }
 
+    /// Copies bytes of the memory map, starting at `offset`, into `buf`.
+    ///
+    /// Each byte is read once with a relaxed atomic load: a whole word at a time where the
+    /// range is word-aligned, one byte at a time at its edges. So this is sound while another
+    /// process writes the mapped file at the same time, which no reference into the map could
+    /// be. It also works on a map made by [`MmapOptions::map_raw_read_only`]: relaxed loads up to
+    /// the size of a pointer are allowed on read-only memory (see the "Atomic accesses to
+    /// read-only memory" section of [`std::sync::atomic`]).
+    ///
+    /// Returns how many bytes were copied: `buf.len()`, or fewer where the map ends first, and
+    /// `0` when `offset` is at or past the end. It never panics.
+    ///
+    /// As with [`as_ptr`](Self::as_ptr), reading a page lost to a truncation of the file since
+    /// the map was created causes SIGBUS (or equivalent).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::io::Write;
+    ///
+    /// use memmap2::MmapRaw;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let mut file = tempfile::tempfile()?;
+    /// file.write_all(b"abc123")?;
+    /// let mmap = MmapRaw::map_raw(&file)?;
+    ///
+    /// let mut buf = [0; 4];
+    /// assert_eq!(mmap.read_into(4, &mut buf), 2);
+    /// assert_eq!(&buf[..2], b"23");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn read_into(&self, offset: usize, buf: &mut [u8]) -> usize {
+        let len = self.len();
+        if offset >= len {
+            return 0;
+        }
+        let count = buf.len().min(len - offset);
+        // SAFETY: `offset < len`, so `start` is inside the map.
+        let start = unsafe { self.as_ptr().add(offset) };
+        let word = mem::size_of::<usize>();
+        let head = start
+            .align_offset(mem::align_of::<AtomicUsize>())
+            .min(count);
+        let words = (count - head) / word;
+        let (head_buf, rest) = buf[..count].split_at_mut(head);
+        let (body_buf, tail_buf) = rest.split_at_mut(words * word);
+
+        let load_bytes = |from: usize, out: &mut [u8]| {
+            for (i, dst) in out.iter_mut().enumerate() {
+                // SAFETY: `from + i < count`, so the byte is inside the map, which stays mapped
+                // for as long as `self` lives. `AtomicU8` has the size and alignment of `u8`.
+                let byte = unsafe { &*start.add(from + i).cast::<AtomicU8>() };
+                *dst = byte.load(Ordering::Relaxed);
+            }
+        };
+        load_bytes(0, head_buf);
+        for (i, dst) in body_buf.chunks_exact_mut(word).enumerate() {
+            // SAFETY: `head + (i + 1) * word <= count`, so the word is inside the map, and
+            // `start + head` is aligned for `AtomicUsize`, which has the size of `usize`.
+            #[allow(clippy::cast_ptr_alignment)] // aligned by `head`, from `align_offset`
+            let atom = unsafe { &*start.add(head + i * word).cast::<AtomicUsize>() };
+            dst.copy_from_slice(&atom.load(Ordering::Relaxed).to_ne_bytes());
+        }
+        load_bytes(head + words * word, tail_buf);
+        count
+    }
+
     /// Flushes outstanding memory map modifications to disk.
     ///
     /// When this method returns with a non-error result, all outstanding changes to a file-backed
@@ -1773,3 +1844,7 @@ impl RemapOptions {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../test/map.rs"]
+mod tests;

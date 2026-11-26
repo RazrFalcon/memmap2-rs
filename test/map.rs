@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use crate::advice::Advice;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use std::mem;
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
@@ -944,4 +944,76 @@ fn remap_with_offset() {
 
     // Write out to the whole expanded slice.
     mmap.copy_from_slice(&incr);
+}
+
+#[test]
+fn raw_read_into() {
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(b"abc123").unwrap();
+    let mmap = MmapOptions::new().map_raw(&file).unwrap();
+
+    let mut buf = [0; 3];
+    assert_eq!(mmap.read_into(1, &mut buf), 3);
+    assert_eq!(&buf, b"bc1");
+}
+
+#[test]
+fn raw_read_into_clamps_to_the_map() {
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(b"abc123").unwrap();
+    let mmap = MmapOptions::new().map_raw(&file).unwrap();
+
+    let mut buf = [b'.'; 8];
+    assert_eq!(mmap.read_into(4, &mut buf), 2);
+    assert_eq!(&buf, b"23......");
+    assert_eq!(mmap.read_into(6, &mut buf), 0);
+    assert_eq!(mmap.read_into(usize::MAX, &mut buf), 0);
+    assert_eq!(mmap.read_into(0, &mut []), 0);
+}
+
+#[test]
+fn raw_read_into_read_only() {
+    let tempdir = tempfile::tempdir().unwrap();
+    let path = tempdir.path().join("mmaprawroread");
+    File::create(&path).unwrap().write_all(b"abc123").unwrap();
+    let mmap = MmapOptions::new()
+        .map_raw_read_only(&File::open(&path).unwrap())
+        .unwrap();
+
+    let mut buf = [0; 6];
+    assert_eq!(mmap.read_into(0, &mut buf), 6);
+    assert_eq!(&buf, b"abc123");
+}
+
+#[test]
+fn raw_read_into_sees_writes_to_the_file() {
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(b"abc123").unwrap();
+    let mmap = MmapOptions::new().map_raw(&file).unwrap();
+
+    file.seek(std::io::SeekFrom::Start(0)).unwrap();
+    file.write_all(b"xyz").unwrap();
+
+    let mut buf = [0; 6];
+    assert_eq!(mmap.read_into(0, &mut buf), 6);
+    assert_eq!(&buf, b"xyz123");
+}
+
+#[test]
+fn raw_read_into_every_offset_and_length() {
+    let bytes: Vec<u8> = (0..64u8).collect();
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(&bytes).unwrap();
+    let mmap = MmapOptions::new().map_raw(&file).unwrap();
+
+    for offset in 0..=bytes.len() {
+        for room in 0..=40 {
+            let mut buf = vec![0xff; room];
+            let copied = mmap.read_into(offset, &mut buf);
+            let want = room.min(bytes.len() - offset);
+            assert_eq!(copied, want, "offset {offset} room {room}");
+            assert_eq!(&buf[..copied], &bytes[offset..offset + copied]);
+            assert!(buf[copied..].iter().all(|&b| b == 0xff));
+        }
+    }
 }

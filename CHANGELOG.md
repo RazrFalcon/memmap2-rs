@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+### Added
+- Add `MmapRaw::read_into()` to copy bytes out of a raw map with relaxed atomic loads, from safe code, while another process may write the mapped file. It also works on read-only raw maps.
+
 ## [0.9.12] - 2026-10-21
 ### Added
 - Add `MmapOptions::map_if_safe()` to allow creation read-only mappings of a file from safe code if the kernel can guarantee the file is immutable and large enough.
