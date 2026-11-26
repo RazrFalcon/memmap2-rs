@@ -77,6 +77,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::slice;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
@@ -1174,6 +1175,55 @@ impl MmapRaw {
     #[inline]
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    /// Copies bytes of the memory map, starting at `offset`, into `buf`.
+    ///
+    /// Each byte is read once with a relaxed atomic load, so this is sound while another
+    /// process writes the mapped file at the same time, which no reference into the map could
+    /// be. It also works on a map made by [`MmapOptions::map_raw_read_only`]: a relaxed load of a
+    /// single byte is allowed on read-only memory (see the "Atomic accesses to read-only memory"
+    /// section of [`std::sync::atomic`]).
+    ///
+    /// Returns how many bytes were copied: `buf.len()`, or fewer where the map ends first, and
+    /// `0` when `offset` is at or past the end. It never panics.
+    ///
+    /// As with [`as_ptr`](Self::as_ptr), reading a page lost to a truncation of the file since
+    /// the map was created causes SIGBUS (or equivalent).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::io::Write;
+    ///
+    /// use memmap2::MmapRaw;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let mut file = tempfile::tempfile()?;
+    /// file.write_all(b"abc123")?;
+    /// let mmap = MmapRaw::map_raw(&file)?;
+    ///
+    /// let mut buf = [0; 4];
+    /// assert_eq!(mmap.read_into(4, &mut buf), 2);
+    /// assert_eq!(&buf[..2], b"23");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn read_into(&self, offset: usize, buf: &mut [u8]) -> usize {
+        let len = self.len();
+        if offset >= len {
+            return 0;
+        }
+        let count = buf.len().min(len - offset);
+        let base = self.as_ptr();
+        for (i, dst) in buf[..count].iter_mut().enumerate() {
+            // SAFETY: `offset + i < len`, so the byte is inside the map, which stays mapped for as
+            // long as `self` lives. `AtomicU8` has the same size and alignment as `u8`, and a
+            // relaxed load of one byte is allowed even on read-only memory.
+            let byte = unsafe { &*base.add(offset + i).cast::<AtomicU8>() };
+            *dst = byte.load(Ordering::Relaxed);
+        }
+        count
     }
 
     /// Flushes outstanding memory map modifications to disk.
