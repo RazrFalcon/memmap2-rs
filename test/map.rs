@@ -977,3 +977,108 @@ fn resident_pages_of_a_file_map() {
 fn page_size() -> usize {
     unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
 }
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn discard_range_zeroes_anonymous_pages() {
+    let page = page_size();
+    let mut mmap = MmapMut::map_anon(8 * page).unwrap();
+    mmap.fill(0xaa);
+    assert_eq!(mmap.resident_pages().unwrap(), 8);
+
+    mmap.discard_range(2 * page, 3 * page).unwrap();
+
+    assert!(mmap[2 * page..5 * page].iter().all(|&b| b == 0));
+    assert!(mmap[..2 * page].iter().all(|&b| b == 0xaa));
+    assert!(mmap[5 * page..].iter().all(|&b| b == 0xaa));
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn discard_range_releases_resident_pages() {
+    let page = page_size();
+    let mut mmap = MmapMut::map_anon(8 * page).unwrap();
+    mmap.fill(0xaa);
+
+    mmap.discard_range(2 * page, 3 * page).unwrap();
+
+    assert_eq!(mmap.resident_pages().unwrap(), 5);
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn discard_range_keeps_a_shared_file_map() {
+    let page = page_size();
+    let file = tempfile::tempfile().unwrap();
+    file.set_len(2 * page as u64).unwrap();
+    let mut mmap = unsafe { MmapMut::map_mut(&file).unwrap() };
+    mmap[..5].copy_from_slice(b"hello");
+
+    mmap.discard_range(0, page).unwrap();
+
+    assert_eq!(&mmap[..5], b"hello");
+}
+
+#[test]
+#[cfg(unix)]
+fn discard_range_refuses_a_range_it_would_round() {
+    let page = page_size();
+    let mut mmap = MmapMut::map_anon(4 * page).unwrap();
+    mmap.fill(0xaa);
+
+    for (offset, len) in [
+        (1, page),
+        (0, page + 1),
+        (page, 1),
+        (3 * page, 2 * page),
+        (usize::MAX, page),
+    ] {
+        let err = mmap.discard_range(offset, len).unwrap_err();
+        assert_eq!(
+            err.kind(),
+            std::io::ErrorKind::InvalidInput,
+            "{offset}+{len}"
+        );
+    }
+    assert!(mmap.iter().all(|&b| b == 0xaa));
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn split_discard_discards_lent_pages() {
+    let page = page_size();
+    let mut mmap = MmapMut::map_anon(8 * page).unwrap();
+    {
+        let (bytes, discarder) = mmap.split_discard();
+        bytes.fill(0xaa);
+        discarder.discard(&mut bytes[2 * page..5 * page]).unwrap();
+        assert!(bytes[2 * page..5 * page].iter().all(|&b| b == 0));
+        assert!(bytes[..2 * page].iter().all(|&b| b == 0xaa));
+        assert!(bytes[5 * page..].iter().all(|&b| b == 0xaa));
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn split_discard_refuses_pages_outside_or_unaligned() {
+    let page = page_size();
+    let mut mmap = MmapMut::map_anon(4 * page).unwrap();
+    let mut elsewhere = MmapMut::map_anon(page).unwrap();
+    let (bytes, discarder) = mmap.split_discard();
+    bytes.fill(0xaa);
+
+    let kind = |r: std::io::Result<()>| r.unwrap_err().kind();
+    assert_eq!(
+        kind(discarder.discard(&mut elsewhere[..])),
+        std::io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        kind(discarder.discard(&mut bytes[1..=page])),
+        std::io::ErrorKind::InvalidInput
+    );
+    assert_eq!(
+        kind(discarder.discard(&mut bytes[..page - 1])),
+        std::io::ErrorKind::InvalidInput
+    );
+    assert!(bytes.iter().all(|&b| b == 0xaa));
+}

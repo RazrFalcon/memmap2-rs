@@ -521,6 +521,11 @@ impl MmapInner {
         discard_pages(start, len, self.anon)
     }
 
+    /// The map's start, length and whether it is anonymous, for a `Discarder`.
+    pub fn discard_parts(&self) -> (*mut u8, usize, bool) {
+        (self.ptr.cast(), self.len, self.anon)
+    }
+
     pub fn resident_pages(&self) -> io::Result<usize> {
         let page = page_size();
         let alignment = self.ptr as usize % page;
@@ -722,6 +727,23 @@ fn discard_pages(start: *mut libc::c_void, len: usize, anon: bool) -> io::Result
 #[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
 fn discard_pages(_start: *mut libc::c_void, _len: usize, _anon: bool) -> io::Result<()> {
     Err(io::Error::from(io::ErrorKind::Unsupported))
+}
+
+/// Discards `pages`, which must be page-aligned and inside the map of `len` bytes at `start`.
+pub fn discard_within(start: *mut u8, len: usize, anon: bool, pages: &mut [u8]) -> io::Result<()> {
+    let page = page_size();
+    let at = pages.as_mut_ptr() as usize;
+    let inside = at
+        .checked_sub(start as usize)
+        .and_then(|offset| offset.checked_add(pages.len()))
+        .map_or(false, |end| end <= len);
+    if !inside || at % page != 0 || pages.len() % page != 0 {
+        return Err(io::Error::from(io::ErrorKind::InvalidInput));
+    }
+    if pages.is_empty() {
+        return Ok(());
+    }
+    discard_pages(pages.as_mut_ptr().cast(), pages.len(), anon)
 }
 
 fn page_size() -> usize {

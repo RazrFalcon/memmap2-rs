@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 ### Added
 - Add `resident_pages()` to `Mmap`, `MmapMut` and `MmapRaw` on Unix: how many pages of the map are resident in RAM (`mincore`).
+- Add `MmapMut::discard_range()` on Unix: discard a page-aligned range so the system can reclaim it, safe because it takes `&mut self` and frees the pages at once (`MADV_DONTNEED` on Linux and Android, a fresh anonymous mapping over the range for anonymous maps on Apple targets).
+- Add `MmapMut::split_discard()` on Unix: the map's bytes and a `Discarder` that discards pages cut from them, for discarding while the bytes are lent out.
 
 ## [0.9.12] - 2026-10-21
 ### Added

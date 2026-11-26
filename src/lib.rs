@@ -1692,6 +1692,43 @@ impl MmapMut {
         self.inner.discard(offset, len)
     }
 
+    /// Splits the memory map into its bytes and a [`Discarder`] that can discard pages of them.
+    /// Only supported on Unix.
+    ///
+    /// Where [`discard_range`](Self::discard_range) needs `&mut self`, which no one can have while
+    /// the bytes are lent out, the `Discarder` discards pages the caller proves it holds
+    /// exclusively by passing them as `&mut [u8]`, cut from the lent bytes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(target_os = "linux")]
+    /// # fn main() -> std::io::Result<()> {
+    /// use memmap2::MmapMut;
+    ///
+    /// let page = 4096;
+    /// let mut mmap = MmapMut::map_anon(4 * page)?;
+    /// let (bytes, discarder) = mmap.split_discard();
+    /// bytes.fill(1);
+    /// discarder.discard(&mut bytes[page..2 * page])?;
+    /// assert!(bytes[page..2 * page].iter().all(|&b| b == 0));
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(target_os = "linux"))]
+    /// # fn main() {}
+    /// ```
+    #[cfg(unix)]
+    pub fn split_discard(&mut self) -> (&mut [u8], Discarder<'_>) {
+        let (start, len, anon) = self.inner.discard_parts();
+        let discarder = Discarder {
+            start,
+            len,
+            anon,
+            _map: std::marker::PhantomData,
+        };
+        (self.deref_mut(), discarder)
+    }
+
     /// Returns how many pages of the memory map are resident in RAM. Only supported on Unix.
     ///
     /// A page is the system's page size. A page the map covers in part counts as a whole one.
@@ -1828,3 +1865,36 @@ impl RemapOptions {
 #[cfg(test)]
 #[path = "../test/map.rs"]
 mod tests;
+
+/// The right to discard pages of a [`MmapMut`] whose bytes are lent out, from
+/// [`MmapMut::split_discard`]. Only supported on Unix.
+#[cfg(unix)]
+pub struct Discarder<'a> {
+    start: *mut u8,
+    len: usize,
+    anon: bool,
+    _map: std::marker::PhantomData<&'a mut [u8]>,
+}
+
+#[cfg(unix)]
+impl Discarder<'_> {
+    /// Discards `pages`, as [`MmapMut::discard_range`] does for a range: their contents are
+    /// unspecified afterwards.
+    ///
+    /// `pages` must lie inside the map this came from and start and end on page boundaries;
+    /// otherwise this returns [`ErrorKind::InvalidInput`] and changes nothing. The `&mut` means
+    /// nothing else can see the pages change.
+    pub fn discard(&self, pages: &mut [u8]) -> std::io::Result<()> {
+        os::discard_within(self.start, self.len, self.anon, pages)
+    }
+}
+
+#[cfg(unix)]
+impl fmt::Debug for Discarder<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Discarder")
+            .field("ptr", &self.start)
+            .field("len", &self.len)
+            .finish()
+    }
+}
