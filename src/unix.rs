@@ -267,6 +267,35 @@ impl MmapInner {
         )
     }
 
+    /// Creates a memfd of `len` bytes, maps it read-write, and seals it so this map is its only
+    /// writer and its size can't change.
+    #[cfg(target_os = "linux")]
+    pub fn map_memfd(
+        len: usize,
+        populate: bool,
+        no_reserve: bool,
+    ) -> io::Result<(MmapInner, std::fs::File)> {
+        use std::os::unix::io::FromRawFd;
+
+        let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
+        let fd = unsafe { libc::memfd_create(b"memmap2\0".as_ptr().cast(), flags) };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: `fd` was just created and nothing else owns it.
+        let file = unsafe { std::fs::File::from_raw_fd(fd) };
+        file.set_len(len as u64)?;
+        let inner = MmapInner::map_mut(len, fd, 0, populate, no_reserve, false)?;
+        // Sealed after the map is made: F_SEAL_FUTURE_WRITE keeps that one writable map and
+        // refuses every later one, and write(2), in any process.
+        let seals =
+            libc::F_SEAL_SHRINK | libc::F_SEAL_GROW | libc::F_SEAL_FUTURE_WRITE | libc::F_SEAL_SEAL;
+        if unsafe { libc::fcntl(fd, libc::F_ADD_SEALS, seals) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok((inner, file))
+    }
+
     pub fn map_exec(
         len: usize,
         file: RawFd,

@@ -945,3 +945,43 @@ fn remap_with_offset() {
     // Write out to the whole expanded slice.
     mmap.copy_from_slice(&incr);
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn map_memfd_is_shared_with_a_read_only_map() {
+    let (mut mmap, file) = MmapOptions::new().len(4096).map_memfd().unwrap();
+    mmap[..5].copy_from_slice(b"hello");
+
+    let reader = unsafe { Mmap::map(&file).unwrap() };
+    assert_eq!(&reader[..5], b"hello");
+    assert_eq!(reader.len(), 4096);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn map_memfd_has_no_other_writer() {
+    let (_mmap, mut file) = MmapOptions::new().len(4096).map_memfd().unwrap();
+
+    assert!(
+        unsafe { MmapMut::map_mut(&file) }.is_err(),
+        "a second writable map"
+    );
+    assert!(file.write_all(b"x").is_err(), "write(2)");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn map_memfd_size_is_fixed() {
+    let (_mmap, file) = MmapOptions::new().len(4096).map_memfd().unwrap();
+
+    assert!(file.set_len(0).is_err(), "shrink");
+    assert!(file.set_len(8192).is_err(), "grow");
+    assert_eq!(file.metadata().unwrap().len(), 4096);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn map_memfd_needs_a_length() {
+    let err = MmapOptions::new().map_memfd().unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+}

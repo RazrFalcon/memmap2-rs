@@ -644,6 +644,46 @@ impl MmapOptions {
         .map(|inner| MmapMut { inner })
     }
 
+    /// Creates a writable memory map backed by a new memfd that only this map can write, and
+    /// returns it with the memfd, to hand to another process (a compositor's shared-memory pool,
+    /// for one). Only supported on Linux, since Linux 5.1.
+    ///
+    /// The length must be set with [`len`](Self::len). The memfd is created close-on-exec, sized,
+    /// mapped, and then sealed with `F_SEAL_SHRINK`, `F_SEAL_GROW`, `F_SEAL_FUTURE_WRITE` and
+    /// `F_SEAL_SEAL`. So no one can change its size (no SIGBUS), and no one, this process included,
+    /// can map it writable again or `write(2)` to it: the returned map is the only writer, which is
+    /// why this is safe where [`map_mut`](Self::map_mut) is not. Other processes can still map it
+    /// read-only.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::InvalidInput`] when no length was set, and an error when a step fails,
+    /// including on a kernel without `F_SEAL_FUTURE_WRITE`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(target_os = "linux")]
+    /// # fn main() -> std::io::Result<()> {
+    /// use memmap2::MmapOptions;
+    ///
+    /// let (mut mmap, file) = MmapOptions::new().len(4096).map_memfd()?;
+    /// mmap[..5].copy_from_slice(b"hello");
+    /// assert_eq!(file.metadata()?.len(), 4096);
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(target_os = "linux"))]
+    /// # fn main() {}
+    /// ```
+    #[cfg(target_os = "linux")]
+    pub fn map_memfd(&self) -> std::io::Result<(MmapMut, std::fs::File)> {
+        let len = self
+            .len
+            .ok_or_else(|| Error::from(ErrorKind::InvalidInput))?;
+        let (inner, file) = MmapInner::map_memfd(len, self.populate, self.no_reserve_swap)?;
+        Ok((MmapMut { inner }, file))
+    }
+
     /// Creates a copy-on-write memory map backed by a file.
     ///
     /// Data written to the memory map will not be visible by other processes,

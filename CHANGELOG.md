@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+### Added
+- Add `MmapOptions::map_memfd()` on Linux: a writable map over a new memfd, sealed so the map is its only writer and its size is fixed, from safe code; the memfd is returned to share read-only.
+
 ## [0.9.12] - 2026-10-21
 ### Added
 - Add `MmapOptions::map_if_safe()` to allow creation read-only mappings of a file from safe code if the kernel can guarantee the file is immutable and large enough.
