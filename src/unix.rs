@@ -466,18 +466,8 @@ impl MmapInner {
         // SAFETY: We've checked that offset is within the mapped region.
         let ptr = unsafe { self.ptr.offset(offset) };
 
-        // The AIX signature of 'madvise()' differs from the POSIX
-        // specification, which expects 'void *' as the type of the
-        // 'addr' argument, whereas AIX uses 'caddr_t' (i.e., 'char *').
-        #[cfg(target_os = "aix")]
-        let ptr = self.ptr.offset(offset).cast();
-
         // SAFETY: ptr and len are valid. The burden of giving a safe `advice` value is on the caller.
-        if unsafe { libc::madvise(ptr, len, advice) } != 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(())
-        }
+        unsafe { madvise(ptr, len, advice) }
     }
 
     #[cfg(target_os = "linux")]
@@ -679,5 +669,32 @@ pub fn file_len(file: RawFd) -> io::Result<u64> {
     unsafe {
         let file = ManuallyDrop::new(File::from_raw_fd(file));
         Ok(file.metadata()?.len())
+    }
+}
+
+#[cfg(not(any(target_os = "nto", target_os = "qnx")))]
+unsafe fn madvise(ptr: *mut libc::c_void, len: usize, advice: libc::c_int) -> io::Result<()> {
+    // The AIX signature of 'madvise()' differs from the POSIX
+    // specification, which expects 'void *' as the type of the
+    // 'addr' argument, whereas AIX uses 'caddr_t' (i.e., 'char *').
+    #[cfg(target_os = "aix")]
+    let ptr = ptr.cast();
+
+    // SAFETY: forwarded to the caller.
+    if unsafe { libc::madvise(ptr, len, advice) } != 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+/// QNX has no `madvise()`. `posix_madvise()` takes the `POSIX_MADV_*` values (see `advice.rs`)
+/// and returns the error number instead of setting `errno`.
+#[cfg(any(target_os = "nto", target_os = "qnx"))]
+unsafe fn madvise(ptr: *mut libc::c_void, len: usize, advice: libc::c_int) -> io::Result<()> {
+    // SAFETY: forwarded to the caller.
+    match unsafe { libc::posix_madvise(ptr, len, advice) } {
+        0 => Ok(()),
+        err => Err(io::Error::from_raw_os_error(err)),
     }
 }
