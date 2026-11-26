@@ -1773,3 +1773,7 @@ impl RemapOptions {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../test/map.rs"]
+mod tests;
