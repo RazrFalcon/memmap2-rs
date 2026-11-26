@@ -998,3 +998,22 @@ fn raw_read_into_sees_writes_to_the_file() {
     assert_eq!(mmap.read_into(0, &mut buf), 6);
     assert_eq!(&buf, b"xyz123");
 }
+
+#[test]
+fn raw_read_into_every_offset_and_length() {
+    let bytes: Vec<u8> = (0..64u8).collect();
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(&bytes).unwrap();
+    let mmap = MmapOptions::new().map_raw(&file).unwrap();
+
+    for offset in 0..=bytes.len() {
+        for room in 0..=40 {
+            let mut buf = vec![0xff; room];
+            let copied = mmap.read_into(offset, &mut buf);
+            let want = room.min(bytes.len() - offset);
+            assert_eq!(copied, want, "offset {offset} room {room}");
+            assert_eq!(&buf[..copied], &bytes[offset..offset + copied]);
+            assert!(buf[copied..].iter().all(|&b| b == 0xff));
+        }
+    }
+}

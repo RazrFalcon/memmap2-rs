@@ -71,13 +71,14 @@ use std::fmt;
 #[cfg(not(any(unix, windows)))]
 use std::fs::File;
 use std::io::{Error, ErrorKind};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::slice;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 #[cfg(not(any(unix, windows)))]
 pub struct MmapRawDescriptor<'a>(&'a File);
@@ -1179,11 +1180,12 @@ impl MmapRaw {
 
     /// Copies bytes of the memory map, starting at `offset`, into `buf`.
     ///
-    /// Each byte is read once with a relaxed atomic load, so this is sound while another
+    /// Each byte is read once with a relaxed atomic load: a whole word at a time where the
+    /// range is word-aligned, one byte at a time at its edges. So this is sound while another
     /// process writes the mapped file at the same time, which no reference into the map could
-    /// be. It also works on a map made by [`MmapOptions::map_raw_read_only`]: a relaxed load of a
-    /// single byte is allowed on read-only memory (see the "Atomic accesses to read-only memory"
-    /// section of [`std::sync::atomic`]).
+    /// be. It also works on a map made by [`MmapOptions::map_raw_read_only`]: relaxed loads up to
+    /// the size of a pointer are allowed on read-only memory (see the "Atomic accesses to
+    /// read-only memory" section of [`std::sync::atomic`]).
     ///
     /// Returns how many bytes were copied: `buf.len()`, or fewer where the map ends first, and
     /// `0` when `offset` is at or past the end. It never panics.
@@ -1215,14 +1217,33 @@ impl MmapRaw {
             return 0;
         }
         let count = buf.len().min(len - offset);
-        let base = self.as_ptr();
-        for (i, dst) in buf[..count].iter_mut().enumerate() {
-            // SAFETY: `offset + i < len`, so the byte is inside the map, which stays mapped for as
-            // long as `self` lives. `AtomicU8` has the same size and alignment as `u8`, and a
-            // relaxed load of one byte is allowed even on read-only memory.
-            let byte = unsafe { &*base.add(offset + i).cast::<AtomicU8>() };
-            *dst = byte.load(Ordering::Relaxed);
+        // SAFETY: `offset < len`, so `start` is inside the map.
+        let start = unsafe { self.as_ptr().add(offset) };
+        let word = mem::size_of::<usize>();
+        let head = start
+            .align_offset(mem::align_of::<AtomicUsize>())
+            .min(count);
+        let words = (count - head) / word;
+        let (head_buf, rest) = buf[..count].split_at_mut(head);
+        let (body_buf, tail_buf) = rest.split_at_mut(words * word);
+
+        let load_bytes = |from: usize, out: &mut [u8]| {
+            for (i, dst) in out.iter_mut().enumerate() {
+                // SAFETY: `from + i < count`, so the byte is inside the map, which stays mapped
+                // for as long as `self` lives. `AtomicU8` has the size and alignment of `u8`.
+                let byte = unsafe { &*start.add(from + i).cast::<AtomicU8>() };
+                *dst = byte.load(Ordering::Relaxed);
+            }
+        };
+        load_bytes(0, head_buf);
+        for (i, dst) in body_buf.chunks_exact_mut(word).enumerate() {
+            // SAFETY: `head + (i + 1) * word <= count`, so the word is inside the map, and
+            // `start + head` is aligned for `AtomicUsize`, which has the size of `usize`.
+            #[allow(clippy::cast_ptr_alignment)] // aligned by `head`, from `align_offset`
+            let atom = unsafe { &*start.add(head + i * word).cast::<AtomicUsize>() };
+            dst.copy_from_slice(&atom.load(Ordering::Relaxed).to_ne_bytes());
         }
+        load_bytes(head + words * word, tail_buf);
         count
     }
 
