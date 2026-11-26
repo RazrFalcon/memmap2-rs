@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use crate::advice::Advice;
+use memmap2::Advice;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::mem;
@@ -11,7 +11,7 @@ use std::os::windows::fs::OpenOptionsExt;
 #[cfg(windows)]
 const GENERIC_ALL: u32 = 0x10000000;
 
-use super::{Mmap, MmapMut, MmapOptions};
+use memmap2::{Mmap, MmapMut, MmapOptions};
 
 #[test]
 fn map_file() {
@@ -602,7 +602,7 @@ fn advise_writes_unsafely() {
 
     let a = mmap.as_ref()[0];
     unsafe {
-        mmap.unchecked_advise(crate::UncheckedAdvice::DontNeed)
+        mmap.unchecked_advise(memmap2::UncheckedAdvice::DontNeed)
             .unwrap();
     }
     let b = mmap.as_ref()[0];
@@ -623,7 +623,7 @@ fn advise_writes_unsafely_to_part_of_map() {
     let a = mmap.as_ref()[0];
     let b = mmap.as_ref()[page_size];
     unsafe {
-        mmap.unchecked_advise_range(crate::UncheckedAdvice::DontNeed, page_size, page_size)
+        mmap.unchecked_advise_range(memmap2::UncheckedAdvice::DontNeed, page_size, page_size)
             .unwrap();
     }
     let c = mmap.as_ref()[0];
@@ -691,7 +691,7 @@ fn lock() {
 #[test]
 #[cfg(target_os = "linux")]
 fn remap_grow() {
-    use crate::RemapOptions;
+    use memmap2::RemapOptions;
 
     let initial_len = 128;
     let final_len = 2000;
@@ -724,7 +724,7 @@ fn remap_grow() {
 #[test]
 #[cfg(target_os = "linux")]
 fn remap_shrink() {
-    use crate::RemapOptions;
+    use memmap2::RemapOptions;
 
     let initial_len = 20000;
     let final_len = 400;
@@ -891,7 +891,7 @@ fn map_if_safe_verity() {
 #[cfg(target_os = "linux")]
 #[cfg(target_pointer_width = "32")]
 fn remap_len_overflow() {
-    use crate::RemapOptions;
+    use memmap2::RemapOptions;
 
     let file = tempfile::tempfile().unwrap();
     file.set_len(1024).unwrap();
@@ -909,7 +909,7 @@ fn remap_len_overflow() {
 #[test]
 #[cfg(target_os = "linux")]
 fn remap_with_offset() {
-    use crate::RemapOptions;
+    use memmap2::RemapOptions;
 
     let offset = 77;
     let initial_len = 128;
